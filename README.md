@@ -2,7 +2,7 @@
 
 Check how many more classes and labs you can miss this semester at NED University without dropping below the attendance requirements.
 
-Upload the **Course-Wise Attendance Analysis** PDF from the portal. If a course looks off, you can edit its numbers or override its combined %. Everything runs in your browser. The PDF is never uploaded, and there is no backend. Your data is saved only in this browser's localStorage, and a button clears it.
+Upload the **Course-Wise Attendance Analysis** PDF from the portal. If a course looks off, you can edit its numbers or override its combined %. Everything runs in your browser. The PDF is never uploaded, and there is no backend. Nothing is saved either: your report lives only in memory while the page is open, so reloading (or tapping "NED Attendance") returns to the upload screen and nobody else on the device can see it. The only thing stored is your light/dark theme choice.
 
 ## What it calculates
 

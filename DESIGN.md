@@ -19,6 +19,7 @@ Clean, functional, monochrome UI that makes the skip numbers readable at a glanc
 - **Type scale:** `text-caption` 13 · `text-small` 14 · `text-body` 16 · `text-title` 20 · `text-display` 32.
 - **Spacing:** only 8 / 16 / 32px (`2`, `4`, `8` in Tailwind units).
 - **Radius:** `rounded-xs` = 3px everywhere.
+- **Themes:** light and dark. `<html data-theme>` is set by an inline head script before first paint, using the saved choice or else the system setting. `ThemeToggle` in the top bar switches between them and stores only that choice.
 - **Motion:** 200ms for color transitions (300ms for larger changes). Motion is turned off under `prefers-reduced-motion`.
 
 ## Components

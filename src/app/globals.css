@@ -5,6 +5,8 @@
  * (bg-raised, text-muted, border-line, …), never raw hex values.
  */
 :root {
+  color-scheme: light;
+
   /* surfaces */
   --surface-page: #fafafa; /* color.surface.muted */
   --surface-raised: #ffffff; /* color.surface.raised */
@@ -38,29 +40,32 @@
   --kind-lab-soft: #f4edfc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface-page: #000000;
-    --surface-raised: #0a0a0a;
-    --surface-inverse: #ededed;
-    --border-default: #262626;
-    --border-strong: #454545;
-    --text-primary: #ededed;
-    --text-secondary: #a1a1a1;
-    --text-on-inverse: #000000;
-    --action-primary-hover: #cfcfcf;
-    --focus-ring: #ededed;
-    --status-safe: #4ade80;
-    --status-safe-soft: #0b2616;
-    --status-risky: #fbbf24;
-    --status-risky-soft: #2a1f05;
-    --status-danger: #ff7a80;
-    --status-danger-soft: #2d0c0e;
-    --kind-theory: #6cb4ff;
-    --kind-theory-soft: #0a1a2e;
-    --kind-lab: #c49bf5;
-    --kind-lab-soft: #1c0f2b;
-  }
+/*
+ * Dark theme. <html data-theme> is set before first paint by the inline script in
+ * layout.tsx: the user's saved choice, otherwise the system preference.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-page: #000000;
+  --surface-raised: #0a0a0a;
+  --surface-inverse: #ededed;
+  --border-default: #262626;
+  --border-strong: #454545;
+  --text-primary: #ededed;
+  --text-secondary: #a1a1a1;
+  --text-on-inverse: #000000;
+  --action-primary-hover: #cfcfcf;
+  --focus-ring: #ededed;
+  --status-safe: #4ade80;
+  --status-safe-soft: #0b2616;
+  --status-risky: #fbbf24;
+  --status-risky-soft: #2a1f05;
+  --status-danger: #ff7a80;
+  --status-danger-soft: #2d0c0e;
+  --kind-theory: #6cb4ff;
+  --kind-theory-soft: #0a1a2e;
+  --kind-lab: #c49bf5;
+  --kind-lab-soft: #1c0f2b;
 }
 
 @theme {

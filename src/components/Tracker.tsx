@@ -11,28 +11,12 @@ import { CourseCard } from "./CourseCard";
 import { SkipTable } from "./SkipTable";
 import { Field, Notice, Spinner } from "./ui";
 
-const STORAGE_KEY = "ned-attendance-tracker:v1";
-
-function loadState(): AppState | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as AppState & { source?: string };
-    // Manual entry was removed; states created that way have no report behind them.
-    return s.source === "manual" ? null : s;
-  } catch {
-    return null;
-  }
-}
-
-function saveState(s: AppState | null) {
-  try {
-    if (s) localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    else localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // storage unavailable (private mode etc.) — the app still works for this visit
-  }
-}
+/**
+ * Attendance data lives only in memory: nothing is written to the browser, so a reload or
+ * closing the tab forgets it and nobody else using this device can see it. Earlier versions
+ * saved the report under this key, so it's deleted on load.
+ */
+const LEGACY_STORAGE_KEY = "ned-attendance-tracker:v1";
 
 /** A real button that opens a hidden file picker, so it works with keyboard, pointer and touch. */
 function UploadButton({
@@ -80,7 +64,9 @@ function EmptyState({ onFile, busy, error }: { onFile: (f: File) => void; busy: 
       </div>
       <div className="flex flex-col items-center gap-4 rounded-xs border border-dashed border-line-strong bg-raised px-4 py-8 text-center">
         <UploadButton onFile={onFile} busy={busy} variant="primary" label="Upload attendance PDF" />
-        <p className="text-small text-muted">PDF only. Read in your browser, never uploaded anywhere.</p>
+        <p className="text-small text-muted">
+          PDF only. Read in your browser — never uploaded or saved. Reload the page and it&apos;s gone.
+        </p>
       </div>
       {error && <Notice kind="error">{error}</Notice>}
     </div>
@@ -89,19 +75,17 @@ function EmptyState({ onFile, busy, error }: { onFile: (f: File) => void; busy: 
 
 export function Tracker() {
   const [state, setState] = useState<AppState | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage after mount
-    setState(loadState());
-    setLoaded(true);
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {
+      // storage unavailable — nothing was saved there either
+    }
   }, []);
-  useEffect(() => {
-    if (loaded) saveState(state);
-  }, [state, loaded]);
 
   const result = useMemo(() => (state?.startDate && state.asOfDate ? analyse(state) : null), [state]);
   const update = (patch: Partial<AppState>) => setState((s) => (s ? { ...s, ...patch } : s));
@@ -133,7 +117,6 @@ export function Tracker() {
     }
   }
 
-  if (!loaded) return <div aria-busy className="min-h-64" />;
   if (!state) return <EmptyState onFile={handlePdf} busy={busy} error={error} />;
 
   const { meta } = state;
@@ -212,11 +195,11 @@ export function Tracker() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-4 border-t border-line pt-8 sm:flex-row sm:items-center sm:justify-between">
+      <section className="flex flex-col gap-2 border-t border-line pt-8">
         <UploadButton onFile={handlePdf} busy={busy} variant="secondary" label="Upload a newer PDF" />
-        <button type="button" onClick={() => { setState(null); setWarnings([]); setError(null); }} className="btn btn-quiet">
-          Clear data from this browser
-        </button>
+        <p className="text-caption text-muted">
+          Nothing is saved. Your report is only kept while this page is open.
+        </p>
       </section>
       {error && <Notice kind="error">{error}</Notice>}
     </div>
