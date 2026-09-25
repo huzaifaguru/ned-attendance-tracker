@@ -6,20 +6,6 @@ import { Field, inputCls } from "./ui";
 
 const toNum = (s: string) => (s.trim() === "" ? 0 : Math.max(0, Number(s) || 0));
 
-export function blankCourse(): Course {
-  return {
-    id: `m-${Date.now().toString(36)}`,
-    label: "",
-    code: "",
-    thCredit: 3,
-    prCredit: 0,
-    thPresent: 0,
-    thHeld: 0,
-    prPresent: 0,
-    prHeld: 0,
-  };
-}
-
 export function CourseEditor({
   initial, onSave, onCancel, submitLabel,
 }: {

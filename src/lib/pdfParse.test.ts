@@ -116,7 +116,7 @@ describe("parseReport (newer layout with labs, made-up numbers)", () => {
 function expectMatchesNed(report: ReturnType<typeof parseReport>) {
   for (const c of report.courses) expect(matchesReported(c)).toBe(true);
   const { aggregate } = analyse({
-    source: "pdf", meta: report.meta, courses: report.courses,
+    meta: report.meta, courses: report.courses,
     startDate: report.meta.fromDate!, asOfDate: report.meta.generatedOn!, nedAggregate: report.nedAggregate,
   });
   expect(aggregate.pctCeil).toBe(report.nedAggregate);

@@ -91,7 +91,6 @@ describe("aggregate", () => {
   });
 
   const sample: AppState = {
-    source: "pdf",
     meta: {},
     startDate: "2026-08-17",
     asOfDate: "2026-09-25",

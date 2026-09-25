@@ -38,7 +38,6 @@ export interface ParsedReport {
 }
 
 export interface AppState {
-  source: "pdf" | "manual";
   meta: ReportMeta;
   /** ISO date the semester started (week 1 day 1) */
   startDate: string;

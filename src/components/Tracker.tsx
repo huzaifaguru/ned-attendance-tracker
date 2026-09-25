@@ -8,7 +8,6 @@ import { parseReport } from "@/lib/pdfParse";
 import type { AppState, Course } from "@/lib/types";
 import { AggregateCard } from "./AggregateCard";
 import { CourseCard } from "./CourseCard";
-import { CourseEditor, blankCourse } from "./CourseEditor";
 import { SkipTable } from "./SkipTable";
 import { Field, inputCls } from "./ui";
 
@@ -17,7 +16,10 @@ const STORAGE_KEY = "ned-attendance-tracker:v1";
 function loadState(): AppState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AppState) : null;
+    if (!raw) return null;
+    const s = JSON.parse(raw) as AppState & { source?: string };
+    // Manual entry was removed; states created that way have no report behind them.
+    return s.source === "manual" ? null : s;
   } catch {
     return null;
   }
@@ -44,7 +46,7 @@ function EstimateNote() {
   );
 }
 
-function Start({ onPdf, onManual, busy }: { onPdf: (f: File) => void; onManual: () => void; busy: boolean }) {
+function Start({ onPdf, busy }: { onPdf: (f: File) => void; busy: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <div className="flex flex-col gap-3">
@@ -70,9 +72,6 @@ function Start({ onPdf, onManual, busy }: { onPdf: (f: File) => void; onManual: 
           e.target.value = "";
         }}
       />
-      <button type="button" onClick={onManual} className="rounded-xl py-3 text-sm font-medium text-slate-600 underline dark:text-slate-300">
-        No PDF? Enter courses manually
-      </button>
       <p className="text-center text-xs text-slate-500">
         Everything runs in your browser. The PDF is never uploaded anywhere.
       </p>
@@ -86,7 +85,6 @@ export function Tracker() {
   const [busy, setBusy] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage after mount
@@ -107,14 +105,13 @@ export function Tracker() {
     try {
       const report = parseReport(await extractItemsInBrowser(file));
       if (!report.courses.length) {
-        setError("Couldn't find any courses in that PDF. Is it the Course-Wise Attendance report? You can enter courses manually instead.");
+        setError("Couldn't find any courses in that PDF. Is it the Course-Wise Attendance report from the NED portal?");
         setWarnings(report.warnings);
         return;
       }
       const today = todayIso();
       setWarnings(report.warnings);
       setState({
-        source: "pdf",
         meta: report.meta,
         startDate: report.meta.fromDate ?? today,
         asOfDate: report.meta.generatedOn ?? report.meta.toDate ?? today,
@@ -128,40 +125,30 @@ export function Tracker() {
     }
   }
 
-  function startManual() {
-    const today = todayIso();
-    setWarnings([]);
-    setError(null);
-    setState({ source: "manual", meta: {}, startDate: today, asOfDate: today, courses: [] });
-    setAdding(true);
-  }
-
   if (!loaded) return null;
 
   if (!state) {
     return (
       <>
-        <Start onPdf={handlePdf} onManual={startManual} busy={busy} />
+        <Start onPdf={handlePdf} busy={busy} />
         {error && <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-300">{error}</p>}
       </>
     );
   }
 
   const { meta } = state;
-  const stale = state.source === "pdf" && state.asOfDate < todayIso();
+  const stale = state.asOfDate < todayIso();
   const currentWeek = result ? Math.min(SEMESTER_WEEKS, Math.ceil(result.timing.calendarWeeks)) : null;
 
   return (
     <div className="flex flex-col gap-4">
-      {state.source === "pdf" && (
-        <div className="text-sm text-slate-600 dark:text-slate-400">
-          {meta.studentName && <b className="text-slate-900 dark:text-slate-100">{meta.studentName}</b>}
-          {meta.rollNo && <> · {meta.rollNo}</>}
-          {meta.section && <> · {meta.section}</>}
-          {meta.academicYear && <> · {meta.academicYear}</>}
-          <div className="text-xs">{meta.discipline}{meta.session && ` · ${meta.session}`}</div>
-        </div>
-      )}
+      <div className="text-sm text-slate-600 dark:text-slate-400">
+        {meta.studentName && <b className="text-slate-900 dark:text-slate-100">{meta.studentName}</b>}
+        {meta.rollNo && <> · {meta.rollNo}</>}
+        {meta.section && <> · {meta.section}</>}
+        {meta.academicYear && <> · {meta.academicYear}</>}
+        <div className="text-xs">{meta.discipline}{meta.session && ` · ${meta.session}`}</div>
+      </div>
 
       {warnings.length > 0 && (
         <ul className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
@@ -212,25 +199,6 @@ export function Tracker() {
         />
       ))}
 
-      {adding ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="mb-3 font-bold">Add course</h3>
-          <CourseEditor
-            initial={blankCourse()}
-            submitLabel="Add course"
-            onCancel={() => setAdding(false)}
-            onSave={(c) => { setCourses((cs) => [...cs, c]); setAdding(false); }}
-          />
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-600 dark:border-slate-700 dark:text-slate-300"
-        >
-          + Add a course manually
-        </button>
-      )}
 
       <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
         <label className="cursor-pointer rounded-xl bg-slate-100 py-3 text-center text-sm font-medium dark:bg-slate-800">
@@ -249,7 +217,7 @@ export function Tracker() {
         {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-300">{error}</p>}
         <button
           type="button"
-          onClick={() => { setState(null); setWarnings([]); setAdding(false); }}
+          onClick={() => { setState(null); setWarnings([]); }}
           className="py-2 text-xs text-slate-500 underline"
         >
           Clear all data from this browser
