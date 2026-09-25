@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# personal attendance PDFs — never commit real student data
+/sample/
+*.pdf
+
+# copied from pdfjs-dist at build time
+/public/pdf.worker.min.mjs
