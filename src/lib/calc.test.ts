@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  aggregateStatus, analyse, analyseCourse, computeTiming, formulaPct, teachingWeeks,
+  aggregateStatus, analyse, analyseCourse, combinedPct, computeTiming, teachingWeeks,
 } from "./calc";
 import type { AppState, Course } from "./types";
 
@@ -26,21 +26,21 @@ describe("timing", () => {
   });
 });
 
-describe("combined formulas", () => {
+describe("combined % (credit-hour weighted)", () => {
   const lab = course({ thCredit: 3, prCredit: 1, thPresent: 18, thHeld: 24, prPresent: 6, prHeld: 6 });
   const counts = { thPresent: 18, thHeld: 24, prPresent: 6, prHeld: 6 };
 
-  it("A: pooled counts", () => {
-    expect(formulaPct(lab, counts, "pooled")).toBeCloseTo((24 / 30) * 100);
+  it("weights theory% and practical% by credit hours", () => {
+    expect(combinedPct(lab, counts)).toBeCloseTo((75 * 3 + 100 * 1) / 4);
   });
 
-  it("B: credit-hour weighted", () => {
-    expect(formulaPct(lab, counts, "weighted")).toBeCloseTo((75 * 3 + 100 * 1) / 4);
+  it("ignores a component with nothing held yet", () => {
+    expect(combinedPct(lab, { ...counts, prPresent: 0, prHeld: 0 })).toBeCloseTo(75);
   });
 
-  it("B ignores a component with nothing held yet", () => {
-    const c = { ...counts, prPresent: 0, prHeld: 0 };
-    expect(formulaPct(lab, c, "weighted")).toBeCloseTo(75);
+  it("pools counts for non-credit courses", () => {
+    const nonCredit = course({ thCredit: 0, prCredit: 0 });
+    expect(combinedPct(nonCredit, counts)).toBeCloseTo((24 / 30) * 100);
   });
 });
 
@@ -48,7 +48,7 @@ describe("course allowances", () => {
   const timing = { calendarWeeks: 7, teachingWeeksElapsed: 7, teachingWeeksRemaining: 7 };
 
   it("projects remaining classes from the course's own pace", () => {
-    const r = analyseCourse(course({ thPresent: 14, thHeld: 14 }), timing, "pooled");
+    const r = analyseCourse(course({ thPresent: 14, thHeld: 14 }), timing);
     expect(r.thPace).toBe(2);
     expect(r.remainingTh).toBe(14);
     // final = (28 - m) / 28 ≥ 0.75 → m ≤ 7 ; ≥ 0.65 → m ≤ 9.8
@@ -57,13 +57,13 @@ describe("course allowances", () => {
   });
 
   it("reports unreachable targets as null", () => {
-    const r = analyseCourse(course({ thPresent: 0, thHeld: 14 }), timing, "pooled");
+    const r = analyseCourse(course({ thPresent: 0, thHeld: 14 }), timing);
     expect(r.missTh.safe).toBeNull();
     expect(r.missTh.floor).toBeNull();
   });
 
   it("uses the manual override as the current combined %", () => {
-    const r = analyseCourse(course({ thPresent: 14, thHeld: 14, overridePct: 50 }), timing, "pooled");
+    const r = analyseCourse(course({ thPresent: 14, thHeld: 14, overridePct: 50 }), timing);
     expect(r.combinedPct).toBe(50);
     expect(r.overridden).toBe(true);
     // anchored: (7 + 14 - m) / 28 ≥ 0.65 → m ≤ 2.8 ; ≥ 0.75 → m ≤ 0
@@ -73,10 +73,10 @@ describe("course allowances", () => {
 
   it("gives separate lab allowances", () => {
     const r = analyseCourse(
-      course({ thCredit: 3, prCredit: 1, thPresent: 14, thHeld: 14, prPresent: 7, prHeld: 7 }), timing, "pooled",
+      course({ thCredit: 3, prCredit: 1, thPresent: 14, thHeld: 14, prPresent: 7, prHeld: 7 }), timing,
     );
     expect(r.remainingPr).toBe(7);
-    // pooled final with all theory: (42 - m) / 42 ≥ 0.75 → m ≤ 10.5, capped at 7 remaining labs
+    // all theory attended: (100×3 + lab%×1) / 4 ≥ 75 for any lab%, so every remaining lab can go
     expect(r.missPr).toEqual({ safe: 7, floor: 7 });
   });
 });
@@ -95,7 +95,6 @@ describe("aggregate", () => {
     meta: {},
     startDate: "2026-08-17",
     asOfDate: "2026-09-25",
-    formula: "pooled",
     nedAggregate: 78,
     courses: [
       [12, 15], [16, 18], [7, 10], [14, 16], [10, 14], [8, 12],

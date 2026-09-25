@@ -51,7 +51,7 @@ export function AggregateCard({ a, courses }: { a: AggregateResult; courses: Cou
         >
           NED&apos;s own figure on the PDF: <b>{a.nedAggregate}%</b>
           {a.nedMismatch
-            ? ` — this doesn't match our ${fmtPct(a.pct)} beyond rounding. Check the formula toggle, your overrides, and any edits.`
+            ? ` — this doesn't match our ${fmtPct(a.pct)} beyond rounding. Check your overrides and any edits.`
             : " — matches ours after rounding up."}
         </div>
       )}

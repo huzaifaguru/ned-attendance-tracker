@@ -15,12 +15,11 @@ Upload the **Course-Wise Attendance Analysis** PDF from the portal, or enter cou
 
 ### Theory + practical merge (estimated)
 
-NED hasn't published how theory and practical attendance combine for a course. The app offers two options:
+NED hasn't published how theory and practical attendance combine for a course. The app uses a credit-hour weighted combination:
 
-- **B · Credit weighted (default):** `(Th% × Th credits + Pr% × Pr credits) ÷ total credits`
-- **A · Pooled:** `(Th present + Pr present) ÷ (Th held + Pr held)`
+`combined % = (Th% × Th credits + Pr% × Pr credits) ÷ total credits`
 
-Option B, rounded up the way NED prints it, reproduced every course % and the aggregate on a real report with labs. Option A did not match any of the lab courses. It's still labeled an estimate because it isn't official. If a course's % on the portal doesn't match, you can override it for that course. Projections for an overridden course treat the override as the share of everything held so far that you attended, then pool future classes on top of it.
+Rounded up the way NED prints it, this reproduces every course % and the aggregate on real reports, with and without labs. A pooled count (all present ÷ all held) did not match any of the lab courses. It's still labeled an estimate because it isn't official. If a course's % on the portal differs, you can override it for that course. The override is then treated as both the theory % and the lab % so far, and future classes are weighted on top of it.
 
 The aggregate is the credit-hour weighted mean of the course percentages. Zero-credit courses are weighted by their estimated weekly contact hours. NED prints this number rounded up. The app judges your status against the exact, unrounded value, so it errs on the cautious side.
 
@@ -33,7 +32,7 @@ npm test        # parser + calculation tests
 npm run build   # static export to ./out
 ```
 
-The parser tests run against fixtures of positioned text items in `src/lib/__fixtures__`. They copy the layout of both report versions (the older one with 2-decimal percentages, and the newer one with rounded-up `%` values and labs), but all names and numbers are made up. If real reports are placed at `sample/4600050_attendance.pdf` and `sample/lab_attendance.pdf` (git-ignored), extra tests run pdf.js on them and check that Option B reproduces NED's printed numbers.
+The parser tests run against fixtures of positioned text items in `src/lib/__fixtures__`. They copy the layout of both report versions (the older one with 2-decimal percentages, and the newer one with rounded-up `%` values and labs), but all names and numbers are made up. If real reports are placed at `sample/4600050_attendance.pdf` and `sample/lab_attendance.pdf` (git-ignored), extra tests run pdf.js on them and check that the calculation reproduces NED's printed numbers.
 
 pdf.js returns this report's text column by column, not row by row. `src/lib/pdfParse.ts` therefore rebuilds rows from x/y coordinates and assigns values to columns using the header positions. If the headers can't be found, it falls back to reading values left to right.
 

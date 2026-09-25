@@ -5,7 +5,7 @@ import { analyse, SEMESTER_WEEKS } from "@/lib/calc";
 import { formatIso, todayIso } from "@/lib/dates";
 import { extractItemsInBrowser } from "@/lib/pdfExtract";
 import { parseReport } from "@/lib/pdfParse";
-import type { AppState, Course, Formula } from "@/lib/types";
+import type { AppState, Course } from "@/lib/types";
 import { AggregateCard } from "./AggregateCard";
 import { CourseCard } from "./CourseCard";
 import { CourseEditor, blankCourse } from "./CourseEditor";
@@ -13,15 +13,11 @@ import { SkipTable } from "./SkipTable";
 import { Field, inputCls } from "./ui";
 
 const STORAGE_KEY = "ned-attendance-tracker:v1";
-const DEFAULT_FORMULA: Formula = "weighted";
 
 function loadState(): AppState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as AppState;
-    // Option B became the default once it was verified against a real report with labs.
-    return s.formulaPicked ? s : { ...s, formula: DEFAULT_FORMULA };
+    return raw ? (JSON.parse(raw) as AppState) : null;
   } catch {
     return null;
   }
@@ -36,42 +32,14 @@ function saveState(s: AppState | null) {
   }
 }
 
-function EstimateNote({ formula }: { formula: Formula }) {
+function EstimateNote() {
   return (
     <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
       <b>These are estimates.</b> NED now merges practical attendance into the aggregate requirement but
-      hasn&apos;t published the formula. Option B (credit-hour weighted, rounded up) reproduces every course % and
-      the aggregate on a real report with labs, so it&apos;s the default, but it isn&apos;t official. You&apos;re using{" "}
-      <b>{formula === "pooled" ? "Option A (pooled count)" : "Option B (credit-hour weighted)"}</b>. For theory-only
-      courses both options give the same number. If your portal shows something different for a course, use its{" "}
-      <i>Edit / override</i>.
-    </div>
-  );
-}
-
-function FormulaToggle({ value, onChange }: { value: Formula; onChange: (f: Formula) => void }) {
-  const opt = (f: Formula, title: string, desc: string) => (
-    <button
-      type="button"
-      onClick={() => onChange(f)}
-      aria-pressed={value === f}
-      className={`flex-1 rounded-lg px-3 py-2 text-left transition ${
-        value === f
-          ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-          : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-      }`}
-    >
-      <div className="text-sm font-semibold">{title}</div>
-      <div className="text-[11px] opacity-80">{desc}</div>
-    </button>
-  );
-  return (
-    <div>
-      <div className="mb-1 text-xs font-medium text-slate-700 dark:text-slate-300">Theory + practical merge formula (estimated)</div>
-      <div className="flex gap-2">
-        {opt("weighted", "B · Credit weighted", "Th% × Th cr + Pr% × Pr cr, ÷ total cr · matches NED's PDFs")}
-        {opt("pooled", "A · Pooled count", "(Th + Pr present) ÷ (Th + Pr held)")}
-      </div>
+      hasn&apos;t published the formula. The combined % here weights theory and practical by their credit hours
+      (e.g. 3 Th + 1 Pr → theory counts 3×, lab 1×), rounded up like NED. That reproduces the course %s and the
+      aggregate on real reports, but it isn&apos;t official. Projections of remaining classes are estimates too.
+      If your portal shows something different for a course, use its <i>Edit / override</i>.
     </div>
   );
 }
@@ -152,8 +120,6 @@ export function Tracker() {
         asOfDate: report.meta.generatedOn ?? report.meta.toDate ?? today,
         courses: report.courses,
         nedAggregate: report.nedAggregate,
-        formula: state?.formula ?? DEFAULT_FORMULA,
-        formulaPicked: state?.formulaPicked,
       });
     } catch (e) {
       setError(`Couldn't read that PDF (${e instanceof Error ? e.message : String(e)}).`);
@@ -166,7 +132,7 @@ export function Tracker() {
     const today = todayIso();
     setWarnings([]);
     setError(null);
-    setState({ source: "manual", meta: {}, startDate: today, asOfDate: today, courses: [], formula: DEFAULT_FORMULA });
+    setState({ source: "manual", meta: {}, startDate: today, asOfDate: today, courses: [] });
     setAdding(true);
   }
 
@@ -216,10 +182,9 @@ export function Tracker() {
         </>
       )}
 
-      <EstimateNote formula={state.formula} />
+      <EstimateNote />
 
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <FormulaToggle value={state.formula} onChange={(formula) => update({ formula, formulaPicked: true })} />
         <div className="grid grid-cols-2 gap-2">
           <Field label="Semester start">
             <input type="date" className={inputCls} value={state.startDate} onChange={(e) => update({ startDate: e.target.value })} />

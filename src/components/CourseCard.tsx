@@ -80,7 +80,7 @@ export function CourseCard({
         </div>
         <div className="text-3xl font-extrabold tabular-nums">{fmtPct(r.combinedPct)}</div>
         <div className="text-xs text-slate-500">
-          {r.overridden && <>Formula would give {fmtPct(r.formulaPct)} · </>}
+          {r.overridden && <>Calculated {fmtPct(r.calculatedPct)} · </>}
           {!r.overridden && r.combinedPct !== null && <>NED-style {nedRound(r.combinedPct)}% · </>}
           {c.reportedPct !== undefined && <>PDF shows {c.reportedPct}% · </>}
           Attend everything → {fmtPct(r.bestCasePct)}

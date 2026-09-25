@@ -78,7 +78,7 @@ export function CourseEditor({
 
       <Field
         label="Manual combined % override (optional)"
-        hint="If your portal shows a different combined % than either formula, enter it here. Leave blank to calculate."
+        hint="If your portal shows a different combined % than the calculated one, enter it here. Leave blank to calculate."
       >
         <input
           className={inputCls}

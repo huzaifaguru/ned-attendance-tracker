@@ -1,4 +1,4 @@
-import { reportedMatches } from "./calc";
+import { matchesReported } from "./calc";
 import { parseNedDate } from "./dates";
 import type { Course, ParsedReport, ReportMeta } from "./types";
 
@@ -181,9 +181,9 @@ export function parseReport(items: TextItem[]): ParsedReport {
     if (course.thPresent > course.thHeld || course.prPresent > course.prHeld) {
       warnings.push(`${label}: present exceeds held — check the extracted numbers.`);
     }
-    if (course.reportedPct !== undefined && !reportedMatches(course).length) {
+    if (!matchesReported(course)) {
       warnings.push(
-        `${label}: PDF shows ${course.reportedPct}%, which neither merge formula reproduces — ` +
+        `${label}: PDF shows ${course.reportedPct}%, which our calculation doesn't reproduce — ` +
           "check the extracted numbers, or use a manual override for this course.",
       );
     }

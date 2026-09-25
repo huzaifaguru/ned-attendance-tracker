@@ -1,5 +1,5 @@
 import { daysBetween } from "./dates";
-import type { AppState, Course, Formula } from "./types";
+import type { AppState, Course } from "./types";
 
 export const SAFE = 75;
 export const CONDONE = 70;
@@ -47,31 +47,24 @@ export interface Counts {
 
 const pct = (present: number, held: number) => (held > 0 ? (present / held) * 100 : null);
 
-/** Combined % for one course by formula (ignores overrides). null if nothing held yet. */
-export function formulaPct(course: Course, c: Counts, formula: Formula): number | null {
+/**
+ * Combined % for one course (ignores overrides); null if nothing held yet.
+ * NED weights theory% and practical% by their credit hours, which reproduces every
+ * course % and the aggregate printed on real reports. Non-credit courses fall back
+ * to pooled counts (a proxy for contact hours).
+ */
+export function combinedPct(course: Course, c: Counts): number | null {
   const th = pct(c.thPresent, c.thHeld);
   const pr = pct(c.prPresent, c.prHeld);
   if (th === null && pr === null) return null;
-  if (formula === "weighted") {
-    const wTh = th === null ? 0 : course.thCredit;
-    const wPr = pr === null ? 0 : course.prCredit;
-    if (wTh + wPr > 0) return ((th ?? 0) * wTh + (pr ?? 0) * wPr) / (wTh + wPr);
-  }
+  const wTh = th === null ? 0 : course.thCredit;
+  const wPr = pr === null ? 0 : course.prCredit;
+  if (wTh + wPr > 0) return ((th ?? 0) * wTh + (pr ?? 0) * wPr) / (wTh + wPr);
   return pct(c.thPresent + c.prPresent, c.thHeld + c.prHeld);
 }
 
 /** NED prints course and aggregate percentages rounded up (newer reports) or to 2 dp (older ones). */
 export const nedRound = (p: number) => Math.ceil(p - 1e-9);
-
-/** Which formulas reproduce the percentage printed on the PDF for this course. */
-export function reportedMatches(course: Course): Formula[] {
-  const reported = course.reportedPct;
-  if (reported === undefined) return [];
-  return (["weighted", "pooled"] as Formula[]).filter((f) => {
-    const p = formulaPct(course, countsOf(course), f);
-    return p !== null && (Math.abs(p - reported) < 0.006 || nedRound(p) === reported);
-  });
-}
 
 const countsOf = (c: Course): Counts => ({
   thPresent: c.thPresent,
@@ -80,25 +73,32 @@ const countsOf = (c: Course): Counts => ({
   prHeld: c.prHeld,
 });
 
+/** Whether our calculation reproduces the percentage printed on the PDF for this course. */
+export function matchesReported(course: Course): boolean {
+  const reported = course.reportedPct;
+  if (reported === undefined) return true;
+  const p = combinedPct(course, countsOf(course));
+  return p !== null && (Math.abs(p - reported) < 0.006 || nedRound(p) === reported);
+}
+
 /**
- * Combined % after `extra` future classes. With a manual override, the override is
- * treated as "this % of everything held so far was attended" and future classes are
- * pooled on top of it, since we can't know how the portal arrived at its number.
+ * Combined % after `extra` future classes. With a manual override we can't know how the
+ * portal split it between theory and practical, so both are assumed to be at the override %.
  */
-export function projectedPct(course: Course, extra: Counts, formula: Formula): number | null {
-  if (course.overridePct !== undefined) {
-    const held = course.thHeld + course.prHeld;
-    const anchored = (course.overridePct / 100) * held;
-    const total = held + extra.thHeld + extra.prHeld;
-    return total > 0 ? ((anchored + extra.thPresent + extra.prPresent) / total) * 100 : course.overridePct;
-  }
+export function projectedPct(course: Course, extra: Counts): number | null {
   const base = countsOf(course);
-  return formulaPct(course, {
+  if (course.overridePct !== undefined) {
+    const o = course.overridePct / 100;
+    base.thPresent = o * course.thHeld;
+    base.prPresent = o * course.prHeld;
+  }
+  const p = combinedPct(course, {
     thPresent: base.thPresent + extra.thPresent,
     thHeld: base.thHeld + extra.thHeld,
     prPresent: base.prPresent + extra.prPresent,
     prHeld: base.prHeld + extra.prHeld,
-  }, formula);
+  });
+  return p ?? course.overridePct ?? null;
 }
 
 // ---------------------------------------------------------------- status
@@ -146,7 +146,8 @@ export interface CourseResult {
   hasLab: boolean;
   thPct: number | null;
   prPct: number | null;
-  formulaPct: number | null;
+  /** calculated combined %, shown next to an override for comparison */
+  calculatedPct: number | null;
   combinedPct: number | null;
   overridden: boolean;
   thPace: number;
@@ -181,7 +182,7 @@ function maxMisses(remaining: number, finalPct: (miss: number) => number | null,
   return m;
 }
 
-export function analyseCourse(course: Course, timing: Timing, formula: Formula): CourseResult {
+export function analyseCourse(course: Course, timing: Timing): CourseResult {
   const elapsed = timing.teachingWeeksElapsed;
   const thPace = elapsed > 0 ? course.thHeld / elapsed : 0;
   const prPace = elapsed > 0 ? course.prHeld / elapsed : 0;
@@ -189,10 +190,10 @@ export function analyseCourse(course: Course, timing: Timing, formula: Formula):
   const remainingPr = Math.round(prPace * timing.teachingWeeksRemaining);
   const hasLab = course.prCredit > 0 || course.prHeld > 0;
 
-  const fPct = formulaPct(course, countsOf(course), formula);
-  const combinedPct = course.overridePct ?? fPct;
+  const calculatedPct = combinedPct(course, countsOf(course));
+  const current = course.overridePct ?? calculatedPct;
   const rem = { remainingTh, remainingPr };
-  const final = (kind: Kind) => (m: number) => projectedPct(course, futureCounts(rem, kind, m), formula);
+  const final = (kind: Kind) => (m: number) => projectedPct(course, futureCounts(rem, kind, m));
   const allowance = (kind: Kind, remaining: number): MissAllowance => ({
     floor: maxMisses(remaining, final(kind), FLOOR),
     safe: maxMisses(remaining, final(kind), SAFE),
@@ -206,8 +207,8 @@ export function analyseCourse(course: Course, timing: Timing, formula: Formula):
     hasLab,
     thPct: pct(course.thPresent, course.thHeld),
     prPct: pct(course.prPresent, course.prHeld),
-    formulaPct: fPct,
-    combinedPct,
+    calculatedPct,
+    combinedPct: current,
     overridden: course.overridePct !== undefined,
     thPace,
     prPace,
@@ -216,7 +217,7 @@ export function analyseCourse(course: Course, timing: Timing, formula: Formula):
     bestCasePct: final("th")(0),
     missTh: allowance("th", remainingTh),
     missPr: hasLab ? allowance("pr", remainingPr) : null,
-    status: courseStatus(combinedPct),
+    status: courseStatus(current),
     weight: credits > 0 ? credits : contact > 0 ? contact : 1,
     weightIsContact: credits === 0,
   };
@@ -265,14 +266,13 @@ function weightedAverage(results: CourseResult[], pcts: (number | null)[]): numb
 function aggregateMisses(
   results: CourseResult[],
   kind: Kind,
-  formula: Formula,
   target: number,
   perCourseFloor: boolean,
 ): AggregateMiss {
   const misses = results.map(() => 0);
   const remaining = results.map((r) => (kind === "th" ? r.remainingTh : r.remainingPr));
   const finalOf = (i: number, m: number) =>
-    projectedPct(results[i].course, futureCounts(results[i], kind, m), formula);
+    projectedPct(results[i].course, futureCounts(results[i], kind, m));
   const finals = results.map((_, i) => finalOf(i, 0));
   const passes = (fs: (number | null)[]) =>
     (weightedAverage(results, fs) ?? 0) >= target - 1e-9 &&
@@ -305,7 +305,6 @@ function aggregateMisses(
 
 export function analyseAggregate(
   results: CourseResult[],
-  formula: Formula,
   nedAggregate?: number,
 ): AggregateResult {
   const current = results.map((r) => r.combinedPct);
@@ -314,8 +313,8 @@ export function analyseAggregate(
   const minCourse = known.length ? Math.min(...known) : null;
   const anyLab = results.some((r) => r.hasLab);
   const both = (kind: Kind) => ({
-    floor: aggregateMisses(results, kind, formula, FLOOR, false),
-    safe: aggregateMisses(results, kind, formula, SAFE, true),
+    floor: aggregateMisses(results, kind, FLOOR, false),
+    safe: aggregateMisses(results, kind, SAFE, true),
   });
   const pctCeil = agg === null ? null : nedRound(agg);
 
@@ -337,7 +336,7 @@ export function analyseAggregate(
 
 export function analyse(state: AppState) {
   const timing = computeTiming(state.startDate, state.asOfDate);
-  const courses = state.courses.map((c) => analyseCourse(c, timing, state.formula));
-  const aggregate = analyseAggregate(courses, state.formula, state.nedAggregate);
+  const courses = state.courses.map((c) => analyseCourse(c, timing));
+  const aggregate = analyseAggregate(courses, state.nedAggregate);
   return { timing, courses, aggregate };
 }

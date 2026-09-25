@@ -1,5 +1,3 @@
-export type Formula = "pooled" | "weighted";
-
 export interface Course {
   id: string;
   /** Display label, e.g. "CT-468 ( Opt )" */
@@ -48,7 +46,4 @@ export interface AppState {
   asOfDate: string;
   courses: Course[];
   nedAggregate?: number;
-  formula: Formula;
-  /** true once the user picks a formula themselves (so a changed default doesn't override it) */
-  formulaPicked?: boolean;
 }

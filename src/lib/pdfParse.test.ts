@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { analyse, reportedMatches } from "./calc";
+import { analyse, matchesReported, nedRound } from "./calc";
 import fixture from "./__fixtures__/sample-theory-only.items.json";
 import labFixture from "./__fixtures__/sample-with-labs.items.json";
 import { extractItems } from "./pdfExtract";
@@ -51,8 +51,8 @@ describe("parseReport (sample layout, made-up numbers)", () => {
     expectSample(parseReport(shuffled));
   });
 
-  it("printed values are reproduced by Option B (theory-only: same as A)", () => {
-    expectOptionBMatches(parseReport(items));
+  it("printed values are reproduced by our calculation", () => {
+    expectMatchesNed(parseReport(items));
   });
 
   it("falls back to left-to-right order when column headers are missing", () => {
@@ -102,17 +102,21 @@ describe("parseReport (newer layout with labs, made-up numbers)", () => {
       ]);
   });
 
-  it("identifies credit-weighted (Option B) as the formula behind the printed %", () => {
+  it("printed % comes from credit weighting, not pooled counts", () => {
     const labs = report.courses.filter((c) => c.prHeld > 0);
-    for (const c of labs) expect(reportedMatches(c)).toEqual(["weighted"]);
+    for (const c of labs) {
+      expect(matchesReported(c)).toBe(true);
+      const pooled = ((c.thPresent + c.prPresent) / (c.thHeld + c.prHeld)) * 100;
+      expect(nedRound(pooled)).not.toBe(c.reportedPct);
+    }
   });
 });
 
-/** Every printed course % and the aggregate must be reproduced by Option B, rounded up. */
-function expectOptionBMatches(report: ReturnType<typeof parseReport>) {
-  for (const c of report.courses) expect(reportedMatches(c)).toContain("weighted");
+/** Every printed course % and the aggregate must be reproduced by our calculation, rounded up. */
+function expectMatchesNed(report: ReturnType<typeof parseReport>) {
+  for (const c of report.courses) expect(matchesReported(c)).toBe(true);
   const { aggregate } = analyse({
-    source: "pdf", meta: report.meta, courses: report.courses, formula: "weighted",
+    source: "pdf", meta: report.meta, courses: report.courses,
     startDate: report.meta.fromDate!, asOfDate: report.meta.generatedOn!, nedAggregate: report.nedAggregate,
   });
   expect(aggregate.pctCeil).toBe(report.nedAggregate);
@@ -127,18 +131,18 @@ const loadReal = async (path: string) => {
 };
 
 describe.skipIf(!existsSync(LAB_SAMPLE))("real lab PDF via pdf.js", () => {
-  it("parses, and Option B reproduces NED's numbers", async () => {
+  it("parses, and our calculation reproduces NED's numbers", async () => {
     const report = await loadReal(LAB_SAMPLE);
     expect(report.warnings).toEqual([]);
     expect(report.courses.filter((c) => c.prHeld > 0).length).toBeGreaterThan(0);
-    expectOptionBMatches(report);
+    expectMatchesNed(report);
   });
 });
 
 describe.skipIf(!existsSync(SAMPLE))("real sample PDF via pdf.js", () => {
   it("extracts and parses end to end", async () => {
     const report = await loadReal(SAMPLE);
-    expectOptionBMatches(report);
+    expectMatchesNed(report);
     // Structure only — the real numbers stay out of the repo.
     expect(report.warnings).toEqual([]);
     expect(report.courses.map((c) => c.label)).toEqual(EXPECTED.map((e) => e.label));
