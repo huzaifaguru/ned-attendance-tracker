@@ -40,7 +40,7 @@ function EstimateNote() {
       <b>These are estimates.</b> NED now merges practical attendance into the aggregate requirement but
       hasn&apos;t published the formula. The combined % here weights theory and practical by their credit hours
       (e.g. 3 Th + 1 Pr → theory counts 3×, lab 1×), rounded up like NED. That reproduces the course %s and the
-      aggregate on real reports, but it isn&apos;t official. Projections of remaining classes are estimates too.
+      aggregate on real reports, but it isn&apos;t official. Classes left assume every scheduled class happens (no holidays or cancellations).
       If your portal shows something different for a course, use its <i>Edit / override</i>.
     </div>
   );
@@ -138,7 +138,6 @@ export function Tracker() {
 
   const { meta } = state;
   const stale = state.asOfDate < todayIso();
-  const currentWeek = result ? Math.min(SEMESTER_WEEKS, Math.ceil(result.timing.calendarWeeks)) : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -182,9 +181,9 @@ export function Tracker() {
         </div>
         {result && (
           <p className="text-xs text-slate-600 dark:text-slate-400">
-            Week {currentWeek} of {SEMESTER_WEEKS} · {result.timing.teachingWeeksElapsed.toFixed(1)} teaching weeks done,{" "}
-            ~{result.timing.teachingWeeksRemaining.toFixed(1)} left (week 8 mid-terms and week 16 finals have no lectures).
-            Each course&apos;s remaining classes are projected from its own pace so far.
+            Week {result.timing.currentWeek} of {SEMESTER_WEEKS} · {result.timing.weeksRemaining} weeks of classes
+            left. Classes left in a subject = its credit hours per week × weeks left (e.g. 3 Th + 1 Pr → 3 classes
+            and 1 lab a week).
           </p>
         )}
       </section>

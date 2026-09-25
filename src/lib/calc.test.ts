@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  aggregateStatus, analyse, analyseCourse, combinedPct, computeTiming, courseStatus, teachingWeeks,
+  aggregateStatus, analyse, analyseCourse, combinedPct, computeTiming, courseStatus,
 } from "./calc";
 import type { AppState, Course } from "./types";
 
@@ -9,20 +9,15 @@ const course = (o: Partial<Course>): Course => ({
   thCredit: 3, prCredit: 0, thPresent: 0, thHeld: 0, prPresent: 0, prHeld: 0, ...o,
 });
 
-describe("timing", () => {
-  it("skips mid-term week 8 and caps at 14 teaching weeks", () => {
-    expect(teachingWeeks(5)).toBe(5);
-    expect(teachingWeeks(6.5)).toBe(6.5);
-    expect(teachingWeeks(7.5)).toBe(7);
-    expect(teachingWeeks(8)).toBe(7);
-    expect(teachingWeeks(10)).toBe(9);
-    expect(teachingWeeks(16)).toBe(14);
+describe("timing (15 weeks of classes)", () => {
+  it("counts the report's week as done", () => {
+    // 17 Aug (Mon) → 25 Sep (Fri) is day 40, i.e. week 6
+    expect(computeTiming("2026-08-17", "2026-09-25")).toEqual({ currentWeek: 6, weeksRemaining: 9 });
+    expect(computeTiming("2026-08-17", "2026-08-17")).toEqual({ currentWeek: 1, weeksRemaining: 14 });
   });
 
-  it("counts from From Date through the report day", () => {
-    const t = computeTiming("2026-08-17", "2026-09-25");
-    expect(t.calendarWeeks).toBeCloseTo(40 / 7);
-    expect(t.teachingWeeksRemaining).toBeCloseTo(14 - 40 / 7);
+  it("caps at 15 weeks", () => {
+    expect(computeTiming("2026-08-17", "2027-01-01")).toEqual({ currentWeek: 15, weeksRemaining: 0 });
   });
 });
 
@@ -45,15 +40,21 @@ describe("combined % (credit-hour weighted)", () => {
 });
 
 describe("course allowances", () => {
-  const timing = { calendarWeeks: 7, teachingWeeksElapsed: 7, teachingWeeksRemaining: 7 };
+  const timing = { currentWeek: 7, weeksRemaining: 7 };
 
-  it("projects remaining classes from the course's own pace", () => {
+  it("classes per week = credit hours", () => {
     const r = analyseCourse(course({ thPresent: 14, thHeld: 14 }), timing);
-    expect(r.thPace).toBe(2);
-    expect(r.remainingTh).toBe(14);
-    // subject limit: (28 - m) / 28 ≥ 0.65 → m ≤ 9.8
-    expect(r.missTh).toBe(9);
+    expect(r.thPerWeek).toBe(3);
+    expect(r.remainingTh).toBe(21);
+    // subject limit: (35 - m) / 35 ≥ 0.65 → m ≤ 12.25
+    expect(r.missTh).toBe(12);
     expect(r.missPr).toBeNull();
+  });
+
+  it("non-credit courses use their observed pace", () => {
+    const r = analyseCourse(course({ thCredit: 0, thPresent: 14, thHeld: 14 }), timing);
+    expect(r.thPerWeek).toBe(2);
+    expect(r.remainingTh).toBe(14);
   });
 
   it("reports an unreachable 65% as null", () => {
@@ -71,8 +72,8 @@ describe("course allowances", () => {
     const r = analyseCourse(course({ thPresent: 14, thHeld: 14, overridePct: 50 }), timing);
     expect(r.combinedPct).toBe(50);
     expect(r.overridden).toBe(true);
-    // anchored: (7 + 14 - m) / 28 ≥ 0.65 → m ≤ 2.8
-    expect(r.missTh).toBe(2);
+    // anchored: (7 + 21 - m) / 35 ≥ 0.65 → m ≤ 5.25
+    expect(r.missTh).toBe(5);
   });
 
   it("gives separate lab allowances", () => {
@@ -132,7 +133,7 @@ describe("aggregate", () => {
   });
 
   it("overall skips are null when 75% can't be reached", () => {
-    const low = { ...sample, courses: sample.courses.map((c) => ({ ...c, thPresent: Math.floor(c.thHeld * 0.3) })) };
+    const low = { ...sample, courses: sample.courses.map((c) => ({ ...c, thPresent: 0 })) };
     expect(analyse(low).aggregate.missTh.total).toBeNull();
   });
 });

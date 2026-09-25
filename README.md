@@ -7,7 +7,7 @@ Upload the **Course-Wise Attendance Analysis** PDF from the portal. If a course 
 ## What it calculates
 
 - Current Theory %, Practical %, and an **estimated** combined % for each course
-- Remaining classes and labs, projected from each course's own pace so far (held ÷ teaching weeks elapsed). The semester has 16 weeks: week 8 is mid-terms and week 16 is finals, which leaves 14 teaching weeks.
+- Remaining classes and labs: the semester has 15 weeks of classes, and a subject's credit hours are its sessions per week (3 Th + 1 Pr → 3 classes and 1 lab a week). Classes left = credit hours × weeks left after the report's week. Non-credit courses use their observed pace instead.
 - For each subject, how many remaining classes and labs you can skip while that subject stays at 65% or above
 - Overall, how many you can skip in total while the credit-hour weighted aggregate stays at 75% or above and every subject stays at 65% or above, and which subjects to take them from
 - Status: a subject is Safe at 65% or above. Overall is Safe when the aggregate is 75% or above and every subject is at 65% or above, Risky / condonation possible at 70–75%, and Danger zone below 70%

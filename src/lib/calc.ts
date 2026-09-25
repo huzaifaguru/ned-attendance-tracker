@@ -8,35 +8,23 @@ export const AGGREGATE_MIN = 75;
 /** Aggregate 70–75%: Dean may condone case by case. */
 export const CONDONE = 70;
 
-export const SEMESTER_WEEKS = 16;
-export const MIDTERM_WEEK = 8;
-export const TEACHING_WEEKS = 14; // 16 minus mid-term week (8) and finals week (16)
+/** Weeks of classes in a semester. */
+export const SEMESTER_WEEKS = 15;
 
 // ---------------------------------------------------------------- timing
 
 export interface Timing {
-  calendarWeeks: number;
-  teachingWeeksElapsed: number;
-  teachingWeeksRemaining: number;
+  /** week number the report falls in (1-based, capped at SEMESTER_WEEKS) */
+  currentWeek: number;
+  /** whole weeks of classes still to come after the report's week */
+  weeksRemaining: number;
 }
 
-/** Calendar weeks → teaching weeks, skipping mid-term week 8 and finals week 16. */
-export function teachingWeeks(calendarWeeks: number): number {
-  const w = Math.max(0, calendarWeeks);
-  if (w <= MIDTERM_WEEK - 1) return w;
-  if (w <= MIDTERM_WEEK) return MIDTERM_WEEK - 1;
-  return Math.min(w - 1, TEACHING_WEEKS);
-}
-
+/** The report's own week counts as done, since its classes are already in the counts. */
 export function computeTiming(startDate: string, asOfDate: string): Timing {
-  // +1 so the as-of day itself counts (the report covers classes held that day).
-  const calendarWeeks = Math.max(0, (daysBetween(startDate, asOfDate) + 1) / 7);
-  const elapsed = teachingWeeks(calendarWeeks);
-  return {
-    calendarWeeks,
-    teachingWeeksElapsed: elapsed,
-    teachingWeeksRemaining: Math.max(0, TEACHING_WEEKS - elapsed),
-  };
+  const day = daysBetween(startDate, asOfDate) + 1;
+  const currentWeek = Math.min(SEMESTER_WEEKS, Math.max(0, Math.ceil(day / 7)));
+  return { currentWeek, weeksRemaining: SEMESTER_WEEKS - currentWeek };
 }
 
 // ---------------------------------------------------------------- percentages
@@ -144,8 +132,10 @@ export interface CourseResult {
   calculatedPct: number | null;
   combinedPct: number | null;
   overridden: boolean;
-  thPace: number;
-  prPace: number;
+  /** classes per week = theory credit hours */
+  thPerWeek: number;
+  /** labs per week = practical credit hours */
+  prPerWeek: number;
   remainingTh: number;
   remainingPr: number;
   /** combined % if every remaining class and lab is attended */
@@ -179,11 +169,13 @@ function maxMisses(remaining: number, finalPct: (miss: number) => number | null,
 }
 
 export function analyseCourse(course: Course, timing: Timing): CourseResult {
-  const elapsed = timing.teachingWeeksElapsed;
-  const thPace = elapsed > 0 ? course.thHeld / elapsed : 0;
-  const prPace = elapsed > 0 ? course.prHeld / elapsed : 0;
-  const remainingTh = Math.round(thPace * timing.teachingWeeksRemaining);
-  const remainingPr = Math.round(prPace * timing.teachingWeeksRemaining);
+  // Credit hours = sessions per week. Non-credit courses fall back to their observed pace.
+  const observed = (held: number) => (timing.currentWeek > 0 ? held / timing.currentWeek : 0);
+  const credits = course.thCredit + course.prCredit;
+  const thPerWeek = credits > 0 ? course.thCredit : observed(course.thHeld);
+  const prPerWeek = credits > 0 ? course.prCredit : observed(course.prHeld);
+  const remainingTh = Math.round(thPerWeek * timing.weeksRemaining);
+  const remainingPr = Math.round(prPerWeek * timing.weeksRemaining);
   const hasLab = course.prCredit > 0 || course.prHeld > 0;
 
   const calculatedPct = combinedPct(course, countsOf(course));
@@ -191,8 +183,7 @@ export function analyseCourse(course: Course, timing: Timing): CourseResult {
   const rem = { remainingTh, remainingPr };
   const final = (kind: Kind) => (m: number) => projectedPct(course, futureCounts(rem, kind, m));
 
-  const credits = course.thCredit + course.prCredit;
-  const contact = thPace + prPace;
+  const contact = thPerWeek + prPerWeek;
 
   return {
     course,
@@ -202,8 +193,8 @@ export function analyseCourse(course: Course, timing: Timing): CourseResult {
     calculatedPct,
     combinedPct: current,
     overridden: course.overridePct !== undefined,
-    thPace,
-    prPace,
+    thPerWeek,
+    prPerWeek,
     remainingTh,
     remainingPr,
     bestCasePct: final("th")(0),

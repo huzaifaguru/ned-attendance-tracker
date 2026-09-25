@@ -16,7 +16,7 @@ function KindStats({
         <span className="text-sm text-slate-600 tabular-nums dark:text-slate-400">({present}/{held})</span>
       </div>
       <div className="text-right text-[11px] leading-tight text-slate-600 dark:text-slate-400">
-        ~{pace.toFixed(1)}/wk
+        {Number.isInteger(pace) ? pace : pace.toFixed(1)}/wk
         <br />~{remaining} {noun} left
       </div>
     </div>
@@ -89,17 +89,13 @@ export function CourseCard({
 
       <div className="grid gap-2 sm:grid-cols-2">
         <KindPanel kind="th">
-          <KindStats pct={r.thPct} present={c.thPresent} held={c.thHeld} pace={r.thPace} remaining={r.remainingTh} noun="classes" />
+          <KindStats pct={r.thPct} present={c.thPresent} held={c.thHeld} pace={r.thPerWeek} remaining={r.remainingTh} noun="classes" />
           <SkipCount noun="Classes" n={r.missTh} rule="this subject ≥ 65%" />
         </KindPanel>
         {r.hasLab && (
           <KindPanel kind="pr">
-            <KindStats pct={r.prPct} present={c.prPresent} held={c.prHeld} pace={r.prPace} remaining={r.remainingPr} noun="labs" />
-            {c.prHeld === 0 ? (
-              <p className="text-xs text-slate-600 dark:text-slate-400">No labs held yet, so there&apos;s no pace to project from.</p>
-            ) : (
-              <SkipCount noun="Labs" n={r.missPr} rule="this subject ≥ 65%" />
-            )}
+            <KindStats pct={r.prPct} present={c.prPresent} held={c.prHeld} pace={r.prPerWeek} remaining={r.remainingPr} noun="labs" />
+            <SkipCount noun="Labs" n={r.missPr} rule="this subject ≥ 65%" />
           </KindPanel>
         )}
       </div>
