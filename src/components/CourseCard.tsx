@@ -4,7 +4,7 @@ import { useState } from "react";
 import { nedRound, type CourseResult } from "@/lib/calc";
 import type { Course } from "@/lib/types";
 import { CourseEditor } from "./CourseEditor";
-import { EstimatedTag, KindPanel, SkipPair, StatusBadge, fmtPct } from "./ui";
+import { EstimatedTag, KindPanel, SkipCount, StatusBadge, fmtPct } from "./ui";
 
 function KindStats({
   pct, present, held, pace, remaining, noun,
@@ -90,15 +90,15 @@ export function CourseCard({
       <div className="grid gap-2 sm:grid-cols-2">
         <KindPanel kind="th">
           <KindStats pct={r.thPct} present={c.thPresent} held={c.thHeld} pace={r.thPace} remaining={r.remainingTh} noun="classes" />
-          <SkipPair noun="Classes" floor={r.missTh.floor} safe={r.missTh.safe} />
+          <SkipCount noun="Classes" n={r.missTh} rule="this subject ≥ 65%" />
         </KindPanel>
-        {r.hasLab && r.missPr && (
+        {r.hasLab && (
           <KindPanel kind="pr">
             <KindStats pct={r.prPct} present={c.prPresent} held={c.prHeld} pace={r.prPace} remaining={r.remainingPr} noun="labs" />
             {c.prHeld === 0 ? (
               <p className="text-xs text-slate-600 dark:text-slate-400">No labs held yet, so there&apos;s no pace to project from.</p>
             ) : (
-              <SkipPair noun="Labs" floor={r.missPr.floor} safe={r.missPr.safe} />
+              <SkipCount noun="Labs" n={r.missPr} rule="this subject ≥ 65%" />
             )}
           </KindPanel>
         )}

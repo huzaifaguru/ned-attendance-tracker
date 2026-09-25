@@ -42,26 +42,25 @@ export function KindPanel({ kind, children }: { kind: "th" | "pr"; children: Rea
   );
 }
 
-/** "Can still skip" pair: floor (65%) and safe (75%). */
-export function SkipPair({
-  noun, floor, safe,
-}: { noun: string; floor: number | null; safe: number | null }) {
-  const cell = (n: number | null, target: string, tone: string) => (
-    <div className="flex-1 rounded-lg bg-white/70 px-2 py-1.5 text-center dark:bg-black/20">
-      <div className={`text-2xl leading-tight font-bold tabular-nums ${n === null ? "text-rose-600 dark:text-rose-400" : tone}`}>
+/** "Can still skip" count against a single target. */
+export function SkipCount({
+  noun, n, rule,
+}: { noun: string; n: number | null; rule: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-white/70 px-3 py-2 dark:bg-black/20">
+      <div
+        className={`min-w-[2.5ch] text-center text-3xl leading-none font-extrabold tabular-nums ${
+          n === null ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"
+        }`}
+      >
         {n === null ? "✕" : n}
       </div>
-      <div className="text-[11px] text-slate-600 dark:text-slate-400">
-        {n === null ? `can't reach ${target}` : `to stay ≥ ${target}`}
-      </div>
-    </div>
-  );
-  return (
-    <div>
-      <div className="mb-1 text-xs font-medium text-slate-700 dark:text-slate-300">{noun} you can still skip</div>
-      <div className="flex gap-2">
-        {cell(safe, "75%", "text-emerald-700 dark:text-emerald-400")}
-        {cell(floor, "65%", "text-amber-700 dark:text-amber-400")}
+      <div className="text-xs leading-snug text-slate-700 dark:text-slate-300">
+        {n === null ? (
+          <>Can&apos;t reach {rule} even attending everything</>
+        ) : (
+          <><b>{noun}</b> you can still skip<br /><span className="text-slate-500">while {rule}</span></>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  aggregateStatus, analyse, analyseCourse, combinedPct, computeTiming, teachingWeeks,
+  aggregateStatus, analyse, analyseCourse, combinedPct, computeTiming, courseStatus, teachingWeeks,
 } from "./calc";
 import type { AppState, Course } from "./types";
 
@@ -51,24 +51,28 @@ describe("course allowances", () => {
     const r = analyseCourse(course({ thPresent: 14, thHeld: 14 }), timing);
     expect(r.thPace).toBe(2);
     expect(r.remainingTh).toBe(14);
-    // final = (28 - m) / 28 ≥ 0.75 → m ≤ 7 ; ≥ 0.65 → m ≤ 9.8
-    expect(r.missTh).toEqual({ safe: 7, floor: 9 });
+    // subject limit: (28 - m) / 28 ≥ 0.65 → m ≤ 9.8
+    expect(r.missTh).toBe(9);
     expect(r.missPr).toBeNull();
   });
 
-  it("reports unreachable targets as null", () => {
+  it("reports an unreachable 65% as null", () => {
     const r = analyseCourse(course({ thPresent: 0, thHeld: 14 }), timing);
-    expect(r.missTh.safe).toBeNull();
-    expect(r.missTh.floor).toBeNull();
+    expect(r.missTh).toBeNull();
+  });
+
+  it("subject status is judged against 65%", () => {
+    expect(courseStatus(65).tone).toBe("safe");
+    expect(courseStatus(70).tone).toBe("safe");
+    expect(courseStatus(64.9).tone).toBe("danger");
   });
 
   it("uses the manual override as the current combined %", () => {
     const r = analyseCourse(course({ thPresent: 14, thHeld: 14, overridePct: 50 }), timing);
     expect(r.combinedPct).toBe(50);
     expect(r.overridden).toBe(true);
-    // anchored: (7 + 14 - m) / 28 ≥ 0.65 → m ≤ 2.8 ; ≥ 0.75 → m ≤ 0
-    expect(r.missTh.floor).toBe(2);
-    expect(r.missTh.safe).toBe(0);
+    // anchored: (7 + 14 - m) / 28 ≥ 0.65 → m ≤ 2.8
+    expect(r.missTh).toBe(2);
   });
 
   it("gives separate lab allowances", () => {
@@ -76,15 +80,15 @@ describe("course allowances", () => {
       course({ thCredit: 3, prCredit: 1, thPresent: 14, thHeld: 14, prPresent: 7, prHeld: 7 }), timing,
     );
     expect(r.remainingPr).toBe(7);
-    // all theory attended: (100×3 + lab%×1) / 4 ≥ 75 for any lab%, so every remaining lab can go
-    expect(r.missPr).toEqual({ safe: 7, floor: 7 });
+    // all theory attended: (100×3 + lab%×1) / 4 ≥ 65 for any lab%, so every remaining lab can go
+    expect(r.missPr).toBe(7);
   });
 });
 
 describe("aggregate", () => {
   it("statuses follow the exam regulations", () => {
     expect(aggregateStatus(80, 70).label).toBe("Safe");
-    expect(aggregateStatus(80, 60).tone).toBe("risky");
+    expect(aggregateStatus(80, 60).tone).toBe("danger");
     expect(aggregateStatus(72, 70).label).toMatch(/Condonation/);
     expect(aggregateStatus(67, 70).label).toBe("Danger zone");
     expect(aggregateStatus(60, 70).tone).toBe("danger");
@@ -111,15 +115,24 @@ describe("aggregate", () => {
     expect(analyse({ ...sample, nedAggregate: 72 }).aggregate.nedMismatch).toBe(true);
   });
 
-  it("safe plan keeps every course ≥ 65%", () => {
+  it("overall plan keeps the aggregate ≥ 75% and every subject ≥ 65%", () => {
     const { courses, aggregate } = analyse(sample);
-    const plan = aggregate.missTh.safe.plan;
-    expect(aggregate.missTh.safe.total).toBeGreaterThan(0);
+    const { plan, total } = aggregate.missTh;
+    expect(total).toBeGreaterThan(0);
+    expect(Object.values(plan).reduce((x, y) => x + y, 0)).toBe(total);
+    let sum = 0;
     for (const r of courses) {
       const m = plan[r.course.id] ?? 0;
+      expect(m).toBeLessThanOrEqual(r.missTh!);
       const final = ((r.course.thPresent + r.remainingTh - m) / (r.course.thHeld + r.remainingTh)) * 100;
       expect(final).toBeGreaterThanOrEqual(65);
+      sum += final;
     }
-    expect(aggregate.missTh.floor.total!).toBeGreaterThanOrEqual(aggregate.missTh.safe.total!);
+    expect(sum / courses.length).toBeGreaterThanOrEqual(75);
+  });
+
+  it("overall skips are null when 75% can't be reached", () => {
+    const low = { ...sample, courses: sample.courses.map((c) => ({ ...c, thPresent: Math.floor(c.thHeld * 0.3) })) };
+    expect(analyse(low).aggregate.missTh.total).toBeNull();
   });
 });

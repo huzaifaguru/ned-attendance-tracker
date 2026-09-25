@@ -164,7 +164,7 @@ export function Tracker() {
 
       {result && state.courses.length > 0 && (
         <>
-          <AggregateCard a={result.aggregate} courses={result.courses} />
+          <AggregateCard a={result.aggregate} />
           <SkipTable courses={result.courses} a={result.aggregate} />
         </>
       )}

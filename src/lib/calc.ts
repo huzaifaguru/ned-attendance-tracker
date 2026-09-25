@@ -1,9 +1,12 @@
 import { daysBetween } from "./dates";
 import type { AppState, Course } from "./types";
 
-export const SAFE = 75;
+/** Each subject must stay at or above this. */
+export const COURSE_MIN = 65;
+/** The overall (credit-weighted) aggregate must stay at or above this. */
+export const AGGREGATE_MIN = 75;
+/** Aggregate 70–75%: Dean may condone case by case. */
 export const CONDONE = 70;
-export const FLOOR = 65;
 
 export const SEMESTER_WEEKS = 16;
 export const MIDTERM_WEEK = 8;
@@ -113,33 +116,24 @@ export interface Status {
 
 export function courseStatus(p: number | null): Status {
   if (p === null) return { tone: "risky", label: "No classes yet" };
-  if (p >= SAFE) return { tone: "safe", label: "Safe", detail: "≥75% — cleared for this final" };
-  if (p >= FLOOR) return { tone: "risky", label: "Risky", detail: "65–75% — relies on aggregate / condonation" };
-  return { tone: "danger", label: "Danger", detail: "Below 65% — blocks aggregate clearance" };
+  if (p >= COURSE_MIN) return { tone: "safe", label: "Safe", detail: "At or above the 65% subject limit" };
+  return { tone: "danger", label: "Below 65%", detail: "Below the 65% subject limit" };
 }
 
 export function aggregateStatus(agg: number | null, minCourse: number | null): Status {
   if (agg === null) return { tone: "risky", label: "No data" };
-  if (agg >= SAFE) {
-    if (minCourse !== null && minCourse < FLOOR) {
-      return { tone: "risky", label: "Risky", detail: "Aggregate ≥75%, but a course is below 65%" };
-    }
-    return { tone: "safe", label: "Safe", detail: "Aggregate ≥75% and no course below 65% — cleared" };
+  const courseBelow = minCourse !== null && minCourse < COURSE_MIN;
+  if (agg >= AGGREGATE_MIN) {
+    if (courseBelow) return { tone: "danger", label: "Subject below 65%", detail: "Aggregate is ≥75%, but a subject is below its 65% limit" };
+    return { tone: "safe", label: "Safe", detail: "Aggregate ≥75% and every subject ≥65% — cleared" };
   }
-  if (agg >= CONDONE) return { tone: "risky", label: "Risky / Condonation possible", detail: "70–75% — Dean may condone case-by-case" };
-  if (agg >= FLOOR) return { tone: "danger", label: "Danger zone", detail: "65–70% — needs Chairperson/Dean/VC review" };
-  return { tone: "danger", label: "Danger zone", detail: "Below the 65% floor" };
+  if (agg >= CONDONE) return { tone: "risky", label: "Risky / Condonation possible", detail: "Aggregate 70–75% — Dean may condone case-by-case" };
+  return { tone: "danger", label: "Danger zone", detail: "Aggregate below 70% — needs Chairperson/Dean/VC review" };
 }
 
 // ---------------------------------------------------------------- per course
 
 export type Kind = "th" | "pr";
-
-export interface MissAllowance {
-  /** null = target unreachable even attending everything remaining */
-  floor: number | null;
-  safe: number | null;
-}
 
 export interface CourseResult {
   course: Course;
@@ -156,8 +150,10 @@ export interface CourseResult {
   remainingPr: number;
   /** combined % if every remaining class and lab is attended */
   bestCasePct: number | null;
-  missTh: MissAllowance;
-  missPr: MissAllowance | null;
+  /** classes that can be skipped in this subject alone while it stays ≥ 65%; null = can't reach 65% */
+  missTh: number | null;
+  /** same for labs (null also when the course has no lab) */
+  missPr: number | null;
   status: Status;
   /** credit hrs, or estimated weekly contact hrs for non-credit courses */
   weight: number;
@@ -194,10 +190,6 @@ export function analyseCourse(course: Course, timing: Timing): CourseResult {
   const current = course.overridePct ?? calculatedPct;
   const rem = { remainingTh, remainingPr };
   const final = (kind: Kind) => (m: number) => projectedPct(course, futureCounts(rem, kind, m));
-  const allowance = (kind: Kind, remaining: number): MissAllowance => ({
-    floor: maxMisses(remaining, final(kind), FLOOR),
-    safe: maxMisses(remaining, final(kind), SAFE),
-  });
 
   const credits = course.thCredit + course.prCredit;
   const contact = thPace + prPace;
@@ -215,8 +207,8 @@ export function analyseCourse(course: Course, timing: Timing): CourseResult {
     remainingTh,
     remainingPr,
     bestCasePct: final("th")(0),
-    missTh: allowance("th", remainingTh),
-    missPr: hasLab ? allowance("pr", remainingPr) : null,
+    missTh: maxMisses(remainingTh, final("th"), COURSE_MIN),
+    missPr: hasLab ? maxMisses(remainingPr, final("pr"), COURSE_MIN) : null,
     status: courseStatus(current),
     weight: credits > 0 ? credits : contact > 0 ? contact : 1,
     weightIsContact: credits === 0,
@@ -226,6 +218,7 @@ export function analyseCourse(course: Course, timing: Timing): CourseResult {
 // ---------------------------------------------------------------- aggregate
 
 export interface AggregateMiss {
+  /** null = the 75% aggregate (with every subject ≥ 65%) can't be reached */
   total: number | null;
   /** how the greedy plan spreads the misses, course id → count */
   plan: Record<string, number>;
@@ -240,8 +233,8 @@ export interface AggregateResult {
   status: Status;
   remainingTh: number;
   remainingPr: number;
-  missTh: { floor: AggregateMiss; safe: AggregateMiss };
-  missPr: { floor: AggregateMiss; safe: AggregateMiss } | null;
+  missTh: AggregateMiss;
+  missPr: AggregateMiss | null;
   nedAggregate?: number;
   /** true when NED's number and ours differ by more than rounding */
   nedMismatch: boolean;
@@ -261,22 +254,17 @@ function weightedAverage(results: CourseResult[], pcts: (number | null)[]): numb
 
 /**
  * Greedy: repeatedly skip the class that lowers the final aggregate the least,
- * while the aggregate stays ≥ target (and, for the safe target, every course ≥ 65%).
+ * while the aggregate stays ≥ 75% and every subject stays ≥ 65%.
  */
-function aggregateMisses(
-  results: CourseResult[],
-  kind: Kind,
-  target: number,
-  perCourseFloor: boolean,
-): AggregateMiss {
+function aggregateMisses(results: CourseResult[], kind: Kind): AggregateMiss {
   const misses = results.map(() => 0);
   const remaining = results.map((r) => (kind === "th" ? r.remainingTh : r.remainingPr));
   const finalOf = (i: number, m: number) =>
     projectedPct(results[i].course, futureCounts(results[i], kind, m));
   const finals = results.map((_, i) => finalOf(i, 0));
   const passes = (fs: (number | null)[]) =>
-    (weightedAverage(results, fs) ?? 0) >= target - 1e-9 &&
-    (!perCourseFloor || fs.every((p) => p === null || p >= FLOOR - 1e-9));
+    (weightedAverage(results, fs) ?? 0) >= AGGREGATE_MIN - 1e-9 &&
+    fs.every((p) => p === null || p >= COURSE_MIN - 1e-9);
 
   if (!passes(finals)) return { total: null, plan: {} };
 
@@ -312,10 +300,6 @@ export function analyseAggregate(
   const known = current.filter((p): p is number => p !== null);
   const minCourse = known.length ? Math.min(...known) : null;
   const anyLab = results.some((r) => r.hasLab);
-  const both = (kind: Kind) => ({
-    floor: aggregateMisses(results, kind, FLOOR, false),
-    safe: aggregateMisses(results, kind, SAFE, true),
-  });
   const pctCeil = agg === null ? null : nedRound(agg);
 
   return {
@@ -326,8 +310,8 @@ export function analyseAggregate(
     status: aggregateStatus(agg, minCourse),
     remainingTh: results.reduce((a, r) => a + r.remainingTh, 0),
     remainingPr: results.reduce((a, r) => a + r.remainingPr, 0),
-    missTh: both("th"),
-    missPr: anyLab ? both("pr") : null,
+    missTh: aggregateMisses(results, "th"),
+    missPr: anyLab ? aggregateMisses(results, "pr") : null,
     nedAggregate,
     nedMismatch:
       nedAggregate !== undefined && agg !== null && Math.abs(nedAggregate - agg) >= 1 && pctCeil !== nedAggregate,

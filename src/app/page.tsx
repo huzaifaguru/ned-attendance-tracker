@@ -11,9 +11,9 @@ export default function Home() {
       </header>
       <Tracker />
       <footer className="mt-10 text-center text-[11px] leading-relaxed text-slate-500">
-        Unofficial tool, not affiliated with NED University. Policy per the 2024 Exam Regulations: ≥75% per course
-        clears that course; aggregate ≥75% with no course below 65% clears everything; 70–75% may be condoned by the
-        Dean; below 70% needs Chairperson/Dean/VC review. Always confirm with your department.
+        Unofficial tool, not affiliated with NED University. Rules used: every subject must stay at 65% or above, and
+        the overall aggregate must be 75% or above. An aggregate of 70–75% may be condoned by the Dean; below 70%
+        needs Chairperson/Dean/VC review. Always confirm with your department.
       </footer>
     </main>
   );

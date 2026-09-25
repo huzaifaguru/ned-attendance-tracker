@@ -8,10 +8,11 @@ Upload the **Course-Wise Attendance Analysis** PDF from the portal. If a course 
 
 - Current Theory %, Practical %, and an **estimated** combined % for each course
 - Remaining classes and labs, projected from each course's own pace so far (held ÷ teaching weeks elapsed). The semester has 16 weeks: week 8 is mid-terms and week 16 is finals, which leaves 14 teaching weeks.
-- How many of those remaining classes and labs you can skip and still stay at or above 65% (the floor) and 75% (safe), for each course and for the credit-hour weighted aggregate
-- Status per the 2024 Exam Regulations: Safe (≥75%), Risky / condonation possible (70–75%), Danger zone (<70%, or below the 65% floor)
+- For each subject, how many remaining classes and labs you can skip while that subject stays at 65% or above
+- Overall, how many you can skip in total while the credit-hour weighted aggregate stays at 75% or above and every subject stays at 65% or above, and which subjects to take them from
+- Status: a subject is Safe at 65% or above. Overall is Safe when the aggregate is 75% or above and every subject is at 65% or above, Risky / condonation possible at 70–75%, and Danger zone below 70%
 
-- A **skip planner table**: for each course, the classes (and labs) you can still skip, plus an Overall row
+- A **skip planner table**: per subject, the most you can skip (to stay at 65%) and your share of the overall plan (to keep 75%), plus an Overall row
 
 ### Theory + practical merge (estimated)
 
