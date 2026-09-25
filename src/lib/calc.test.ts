@@ -42,23 +42,31 @@ describe("combined % (credit-hour weighted)", () => {
 describe("course allowances", () => {
   const timing = { currentWeek: 7, weeksRemaining: 7 };
 
-  it("classes per week = credit hours", () => {
+  it("a 3 CH subject totals 45 classes; classes left = 45 − held (make-ups included)", () => {
     const r = analyseCourse(course({ thPresent: 14, thHeld: 14 }), timing);
     expect(r.thPerWeek).toBe(3);
-    expect(r.remainingTh).toBe(21);
-    // subject limit: (35 - m) / 35 ≥ 0.65 → m ≤ 12.25
-    expect(r.missTh).toBe(12);
+    expect(r.totalTh).toBe(45);
+    expect(r.remainingTh).toBe(31);
+    // subject limit: (45 - m) / 45 ≥ 0.65 → m ≤ 15.75
+    expect(r.missTh).toBe(15);
     expect(r.missPr).toBeNull();
   });
 
-  it("non-credit courses use their observed pace", () => {
+  it("never projects fewer than zero classes left", () => {
+    const r = analyseCourse(course({ thPresent: 47, thHeld: 48 }), timing);
+    expect(r.totalTh).toBe(48);
+    expect(r.remainingTh).toBe(0);
+  });
+
+  it("non-credit courses use their observed pace over 15 weeks", () => {
     const r = analyseCourse(course({ thCredit: 0, thPresent: 14, thHeld: 14 }), timing);
     expect(r.thPerWeek).toBe(2);
-    expect(r.remainingTh).toBe(14);
+    expect(r.totalTh).toBe(30);
+    expect(r.remainingTh).toBe(16);
   });
 
   it("reports an unreachable 65% as null", () => {
-    const r = analyseCourse(course({ thPresent: 0, thHeld: 14 }), timing);
+    const r = analyseCourse(course({ thPresent: 0, thHeld: 20 }), timing); // best case 25/45 = 55.6%
     expect(r.missTh).toBeNull();
   });
 
@@ -72,17 +80,18 @@ describe("course allowances", () => {
     const r = analyseCourse(course({ thPresent: 14, thHeld: 14, overridePct: 50 }), timing);
     expect(r.combinedPct).toBe(50);
     expect(r.overridden).toBe(true);
-    // anchored: (7 + 21 - m) / 35 ≥ 0.65 → m ≤ 5.25
-    expect(r.missTh).toBe(5);
+    // anchored: (7 + 31 - m) / 45 ≥ 0.65 → m ≤ 8.75
+    expect(r.missTh).toBe(8);
   });
 
   it("gives separate lab allowances", () => {
     const r = analyseCourse(
       course({ thCredit: 3, prCredit: 1, thPresent: 14, thHeld: 14, prPresent: 7, prHeld: 7 }), timing,
     );
-    expect(r.remainingPr).toBe(7);
+    expect(r.totalPr).toBe(15);
+    expect(r.remainingPr).toBe(8);
     // all theory attended: (100×3 + lab%×1) / 4 ≥ 65 for any lab%, so every remaining lab can go
-    expect(r.missPr).toBe(7);
+    expect(r.missPr).toBe(8);
   });
 });
 

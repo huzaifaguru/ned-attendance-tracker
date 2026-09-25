@@ -1,65 +1,57 @@
-import type { AggregateResult } from "@/lib/calc";
-import { EstimatedTag, KindPanel, SkipCount, StatusBadge, fmtPct } from "./ui";
+import { SEMESTER_WEEKS, type AggregateResult, type Timing } from "@/lib/calc";
+import { EstimatedTag, KindLabel, Stat, StatusBadge, TONE_TEXT, fmtPct } from "./ui";
 
-const OVERALL_RULE = "overall ≥ 75% & every subject ≥ 65%";
+const skipValue = (n: number | null) => (n === null ? "✕" : n);
+const skipHint = (n: number | null, noun: string, left: number) =>
+  n === null
+    ? "Can't reach 75% overall with every subject ≥ 65%, even attending everything"
+    : `of ~${left} ${noun} left · overall stays ≥ 75%, every subject ≥ 65%`;
 
-export function AggregateCard({ a }: { a: AggregateResult }) {
+export function AggregateCard({ a, timing }: { a: AggregateResult; timing: Timing }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-400">Estimated Aggregate</h2>
+    <section aria-labelledby="overall" className="card flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="overall" className="eyebrow">Overall aggregate</h2>
             <EstimatedTag />
           </div>
-          <div className="text-4xl font-extrabold tabular-nums">{fmtPct(a.pct)}</div>
-          <div className="text-xs text-slate-500">
-            Credit-hour weighted · NED-style (rounded up): {a.pctCeil ?? "—"}%
-          </div>
+          <span className={`text-display font-extrabold tabular-nums ${TONE_TEXT[a.status.tone]}`}>{fmtPct(a.pct)}</span>
+          <span className="text-small text-muted">
+            NED-style (rounded up) {a.pctCeil ?? "—"}% · Week {timing.currentWeek} of {SEMESTER_WEEKS}
+          </span>
         </div>
         <StatusBadge status={a.status} />
       </div>
 
-      {a.status.detail && <p className="mb-3 text-sm text-slate-700 dark:text-slate-300">{a.status.detail}.</p>}
+      {a.status.detail && <p className="text-small">{a.status.detail}.</p>}
 
-      {a.nedAggregate !== undefined && (
-        <div
-          className={`mb-3 rounded-lg px-3 py-2 text-sm ${
-            a.nedMismatch
-              ? "bg-rose-50 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-              : "bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-          }`}
-        >
-          NED&apos;s own figure on the PDF: <b>{a.nedAggregate}%</b>
-          {a.nedMismatch
-            ? ` — this doesn't match our ${fmtPct(a.pct)} beyond rounding. Check your overrides and any edits.`
-            : " — matches ours after rounding up."}
-        </div>
-      )}
-
-      <div className="grid gap-2 sm:grid-cols-2">
-        <KindPanel kind="th">
-          <div className="mb-2 text-xs text-slate-600 dark:text-slate-400">~{a.remainingTh} classes left across all subjects</div>
-          <SkipCount noun="Classes" n={a.missTh.total} rule={OVERALL_RULE} />
-        </KindPanel>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Stat
+          label={<KindLabel kind="th">Classes you can skip</KindLabel>}
+          value={skipValue(a.missTh.total)}
+          tone={a.missTh.total === null ? "danger" : undefined}
+          hint={skipHint(a.missTh.total, "classes", a.remainingTh)}
+        />
         {a.missPr && (
-          <KindPanel kind="pr">
-            <div className="mb-2 text-xs text-slate-600 dark:text-slate-400">~{a.remainingPr} labs left across all subjects</div>
-            <SkipCount noun="Labs" n={a.missPr.total} rule={OVERALL_RULE} />
-          </KindPanel>
+          <Stat
+            label={<KindLabel kind="pr">Labs you can skip</KindLabel>}
+            value={skipValue(a.missPr.total)}
+            tone={a.missPr.total === null ? "danger" : undefined}
+            hint={skipHint(a.missPr.total, "labs", a.remainingPr)}
+          />
         )}
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-        <dt>Lowest subject now</dt>
-        <dd className="text-right tabular-nums">{fmtPct(a.minCourse)}</dd>
-        <dt>If you attend everything</dt>
-        <dd className="text-right tabular-nums">{fmtPct(a.bestCasePct)}</dd>
-      </dl>
-      <p className="mt-2 text-[11px] text-slate-500">
-        Rules: every subject ≥ 65%, and the overall aggregate ≥ 75%. The skip planner below shows which subjects to
-        take these skips from.
-      </p>
+      {a.nedAggregate !== undefined && (
+        <p className={`text-small ${a.nedMismatch ? "text-danger" : "text-muted"}`}>
+          The PDF says {a.nedAggregate}%
+          {a.nedMismatch
+            ? ` — that doesn't match ${fmtPct(a.pct)} beyond rounding. Check your overrides and edits.`
+            : " — matches after rounding up."}{" "}
+          Lowest subject now: {fmtPct(a.minCourse)}. Attend everything and you finish at {fmtPct(a.bestCasePct)}.
+        </p>
+      )}
     </section>
   );
 }

@@ -9,7 +9,7 @@ import type { AppState, Course } from "@/lib/types";
 import { AggregateCard } from "./AggregateCard";
 import { CourseCard } from "./CourseCard";
 import { SkipTable } from "./SkipTable";
-import { Field, inputCls } from "./ui";
+import { Field, Notice, Spinner } from "./ui";
 
 const STORAGE_KEY = "ned-attendance-tracker:v1";
 
@@ -34,47 +34,55 @@ function saveState(s: AppState | null) {
   }
 }
 
-function EstimateNote() {
-  return (
-    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-      <b>These are estimates.</b> NED now merges practical attendance into the aggregate requirement but
-      hasn&apos;t published the formula. The combined % here weights theory and practical by their credit hours
-      (e.g. 3 Th + 1 Pr → theory counts 3×, lab 1×), rounded up like NED. That reproduces the course %s and the
-      aggregate on real reports, but it isn&apos;t official. Classes left assume every scheduled class happens (no holidays or cancellations).
-      If your portal shows something different for a course, use its <i>Edit / override</i>.
-    </div>
-  );
-}
-
-function Start({ onPdf, busy }: { onPdf: (f: File) => void; busy: boolean }) {
+/** A real button that opens a hidden file picker, so it works with keyboard, pointer and touch. */
+function UploadButton({
+  onFile, busy, variant, label,
+}: { onFile: (f: File) => void; busy: boolean; variant: "primary" | "secondary"; label: string }) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <div className="flex flex-col gap-3">
+    <>
       <button
         type="button"
         disabled={busy}
+        aria-busy={busy}
         onClick={() => input.current?.click()}
-        className="rounded-2xl border-2 border-dashed border-sky-300 bg-sky-50 px-4 py-8 text-center hover:bg-sky-100 disabled:opacity-60 dark:border-sky-800 dark:bg-sky-950/40 dark:hover:bg-sky-950"
+        className={`btn ${variant === "primary" ? "btn-primary" : "btn-secondary"} w-full sm:w-auto`}
       >
-        <div className="text-lg font-bold text-sky-900 dark:text-sky-200">{busy ? "Reading PDF…" : "Upload attendance PDF"}</div>
-        <div className="mt-1 text-sm text-sky-800/80 dark:text-sky-300/80">
-          The &ldquo;Course-Wise Attendance Analysis&rdquo; report from the NED portal
-        </div>
+        {busy && <Spinner />}
+        {busy ? "Reading PDF…" : label}
       </button>
       <input
         ref={input}
         type="file"
         accept="application/pdf,.pdf"
-        className="hidden"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) onPdf(f);
+          if (f) onFile(f);
           e.target.value = "";
         }}
       />
-      <p className="text-center text-xs text-slate-500">
-        Everything runs in your browser. The PDF is never uploaded anywhere.
-      </p>
+    </>
+  );
+}
+
+function EmptyState({ onFile, busy, error }: { onFile: (f: File) => void; busy: boolean; error: string | null }) {
+  return (
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-display font-extrabold tracking-tight">How many classes can you still skip?</h1>
+        <p className="text-body text-muted">
+          Upload your Course-Wise Attendance report from the NED portal. You&apos;ll get, for every subject, how many
+          classes and labs you can miss while staying at 65%, and how many overall while keeping 75%.
+        </p>
+      </div>
+      <div className="flex flex-col items-center gap-4 rounded-xs border border-dashed border-line-strong bg-raised px-4 py-8 text-center">
+        <UploadButton onFile={onFile} busy={busy} variant="primary" label="Upload attendance PDF" />
+        <p className="text-small text-muted">PDF only. Read in your browser, never uploaded anywhere.</p>
+      </div>
+      {error && <Notice kind="error">{error}</Notice>}
     </div>
   );
 }
@@ -105,7 +113,7 @@ export function Tracker() {
     try {
       const report = parseReport(await extractItemsInBrowser(file));
       if (!report.courses.length) {
-        setError("Couldn't find any courses in that PDF. Is it the Course-Wise Attendance report from the NED portal?");
+        setError("Couldn't find any subjects in that PDF. Is it the Course-Wise Attendance report from the NED portal?");
         setWarnings(report.warnings);
         return;
       }
@@ -125,103 +133,92 @@ export function Tracker() {
     }
   }
 
-  if (!loaded) return null;
-
-  if (!state) {
-    return (
-      <>
-        <Start onPdf={handlePdf} busy={busy} />
-        {error && <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-300">{error}</p>}
-      </>
-    );
-  }
+  if (!loaded) return <div aria-busy className="min-h-64" />;
+  if (!state) return <EmptyState onFile={handlePdf} busy={busy} error={error} />;
 
   const { meta } = state;
   const stale = state.asOfDate < todayIso();
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="text-sm text-slate-600 dark:text-slate-400">
-        {meta.studentName && <b className="text-slate-900 dark:text-slate-100">{meta.studentName}</b>}
-        {meta.rollNo && <> · {meta.rollNo}</>}
-        {meta.section && <> · {meta.section}</>}
-        {meta.academicYear && <> · {meta.academicYear}</>}
-        <div className="text-xs">{meta.discipline}{meta.session && ` · ${meta.session}`}</div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <section className="flex flex-col gap-2">
+        <span className="eyebrow">Report generated {formatIso(state.asOfDate)}</span>
+        <h1 className="text-title font-extrabold tracking-tight">{meta.studentName ?? "Your attendance"}</h1>
+        <p className="text-small text-muted">
+          {[meta.rollNo, meta.section, meta.academicYear, meta.discipline, meta.session].filter(Boolean).join(" · ")}
+        </p>
+      </section>
 
       {warnings.length > 0 && (
-        <ul className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
-          {warnings.map((w) => <li key={w}>⚠ {w}</li>)}
-        </ul>
+        <Notice kind="warning">
+          <ul className="flex flex-col gap-2">{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+        </Notice>
       )}
-
       {stale && (
-        <p className="rounded-xl bg-sky-50 p-3 text-xs text-sky-900 dark:bg-sky-950/50 dark:text-sky-200">
-          These counts are from the report generated {formatIso(state.asOfDate)}. Upload a fresh PDF for up-to-date numbers.
-        </p>
+        <Notice>
+          These counts are from the report generated {formatIso(state.asOfDate)}. Upload a fresh PDF for up-to-date
+          numbers.
+        </Notice>
       )}
 
       {result && state.courses.length > 0 && (
         <>
-          <AggregateCard a={result.aggregate} />
+          <AggregateCard a={result.aggregate} timing={result.timing} />
           <SkipTable courses={result.courses} a={result.aggregate} />
+
+          <section aria-labelledby="subjects" className="flex flex-col gap-4">
+            <h2 id="subjects" className="text-title font-bold">Subjects</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              {result.courses.map((r) => (
+                <CourseCard
+                  key={r.course.id}
+                  r={r}
+                  onChange={(c) => setCourses((cs) => cs.map((x) => (x.id === c.id ? c : x)))}
+                  onDelete={() => setCourses((cs) => cs.filter((x) => x.id !== r.course.id))}
+                />
+              ))}
+            </div>
+          </section>
         </>
       )}
 
-      <EstimateNote />
-
-      <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="grid grid-cols-2 gap-2">
+      <section aria-labelledby="how" className="card flex flex-col gap-4">
+        <h2 id="how" className="text-title font-bold">How this is calculated</h2>
+        <ul className="flex list-disc flex-col gap-2 pl-4 text-small text-muted">
+          <li>
+            <b className="text-ink">Rules:</b> every subject must stay at 65% or above, and the overall aggregate must be
+            75% or above.
+          </li>
+          <li>
+            <b className="text-ink">Semester total:</b> credit hours × {SEMESTER_WEEKS} weeks, with missed classes made
+            up. A 3 Th subject has 45 classes; a 1 Pr lab has 15. Classes left = total − held so far.
+          </li>
+          <li>
+            <b className="text-ink">Subject %:</b> theory % and lab % weighted by credit hours (3 Th + 1 Pr → theory
+            counts 3×, lab 1×), rounded up like NED. This reproduces NED&apos;s printed numbers but isn&apos;t
+            official, so it&apos;s labelled Estimated.
+          </li>
+          <li>
+            <b className="text-ink">Overall:</b> the credit-hour weighted average of all subjects.
+          </li>
+        </ul>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Semester start">
-            <input type="date" className={inputCls} value={state.startDate} onChange={(e) => update({ startDate: e.target.value })} />
+            <input type="date" className="input" value={state.startDate} onChange={(e) => update({ startDate: e.target.value })} />
           </Field>
           <Field label="Counts as of">
-            <input type="date" className={inputCls} value={state.asOfDate} onChange={(e) => update({ asOfDate: e.target.value })} />
+            <input type="date" className="input" value={state.asOfDate} onChange={(e) => update({ asOfDate: e.target.value })} />
           </Field>
         </div>
-        {result && (
-          <p className="text-xs text-slate-600 dark:text-slate-400">
-            Week {result.timing.currentWeek} of {SEMESTER_WEEKS} · {result.timing.weeksRemaining} weeks of classes
-            left. Classes left in a subject = its credit hours per week × weeks left (e.g. 3 Th + 1 Pr → 3 classes
-            and 1 lab a week).
-          </p>
-        )}
       </section>
 
-      <h2 className="mt-2 text-sm font-bold tracking-wide text-slate-500 uppercase">Courses</h2>
-      {result?.courses.map((r) => (
-        <CourseCard
-          key={r.course.id}
-          r={r}
-          onChange={(c) => setCourses((cs) => cs.map((x) => (x.id === c.id ? c : x)))}
-          onDelete={() => setCourses((cs) => cs.filter((x) => x.id !== r.course.id))}
-        />
-      ))}
-
-
-      <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-        <label className="cursor-pointer rounded-xl bg-slate-100 py-3 text-center text-sm font-medium dark:bg-slate-800">
-          {busy ? "Reading PDF…" : "Upload a newer PDF"}
-          <input
-            type="file"
-            accept="application/pdf,.pdf"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handlePdf(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-300">{error}</p>}
-        <button
-          type="button"
-          onClick={() => { setState(null); setWarnings([]); }}
-          className="py-2 text-xs text-slate-500 underline"
-        >
-          Clear all data from this browser
+      <section className="flex flex-col gap-4 border-t border-line pt-8 sm:flex-row sm:items-center sm:justify-between">
+        <UploadButton onFile={handlePdf} busy={busy} variant="secondary" label="Upload a newer PDF" />
+        <button type="button" onClick={() => { setState(null); setWarnings([]); setError(null); }} className="btn btn-quiet">
+          Clear data from this browser
         </button>
-      </div>
+      </section>
+      {error && <Notice kind="error">{error}</Notice>}
     </div>
   );
 }

@@ -8,7 +8,10 @@ export const AGGREGATE_MIN = 75;
 /** Aggregate 70–75%: Dean may condone case by case. */
 export const CONDONE = 70;
 
-/** Weeks of classes in a semester. */
+/**
+ * Weeks of classes in a semester. A subject meets its credit hours per week, and
+ * missed/cancelled classes are made up, so a 3 CH subject always totals 3 × 15 = 45.
+ */
 export const SEMESTER_WEEKS = 15;
 
 // ---------------------------------------------------------------- timing
@@ -136,6 +139,9 @@ export interface CourseResult {
   thPerWeek: number;
   /** labs per week = practical credit hours */
   prPerWeek: number;
+  /** semester total (credit hours × 15), never less than already held */
+  totalTh: number;
+  totalPr: number;
   remainingTh: number;
   remainingPr: number;
   /** combined % if every remaining class and lab is attended */
@@ -169,13 +175,16 @@ function maxMisses(remaining: number, finalPct: (miss: number) => number | null,
 }
 
 export function analyseCourse(course: Course, timing: Timing): CourseResult {
-  // Credit hours = sessions per week. Non-credit courses fall back to their observed pace.
+  // Credit hours = sessions per week over the whole semester (make-ups included), so
+  // classes left = semester total − held. Non-credit courses fall back to their observed pace.
   const observed = (held: number) => (timing.currentWeek > 0 ? held / timing.currentWeek : 0);
   const credits = course.thCredit + course.prCredit;
   const thPerWeek = credits > 0 ? course.thCredit : observed(course.thHeld);
   const prPerWeek = credits > 0 ? course.prCredit : observed(course.prHeld);
-  const remainingTh = Math.round(thPerWeek * timing.weeksRemaining);
-  const remainingPr = Math.round(prPerWeek * timing.weeksRemaining);
+  const totalTh = Math.max(course.thHeld, Math.round(thPerWeek * SEMESTER_WEEKS));
+  const totalPr = Math.max(course.prHeld, Math.round(prPerWeek * SEMESTER_WEEKS));
+  const remainingTh = totalTh - course.thHeld;
+  const remainingPr = totalPr - course.prHeld;
   const hasLab = course.prCredit > 0 || course.prHeld > 0;
 
   const calculatedPct = combinedPct(course, countsOf(course));
@@ -195,6 +204,8 @@ export function analyseCourse(course: Course, timing: Timing): CourseResult {
     overridden: course.overridePct !== undefined,
     thPerWeek,
     prPerWeek,
+    totalTh,
+    totalPr,
     remainingTh,
     remainingPr,
     bestCasePct: final("th")(0),

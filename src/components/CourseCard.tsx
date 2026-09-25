@@ -4,21 +4,40 @@ import { useState } from "react";
 import { nedRound, type CourseResult } from "@/lib/calc";
 import type { Course } from "@/lib/types";
 import { CourseEditor } from "./CourseEditor";
-import { EstimatedTag, KindPanel, SkipCount, StatusBadge, fmtPct } from "./ui";
+import { EstimatedTag, KindLabel, StatusBadge, TONE_TEXT, fmtPct } from "./ui";
 
-function KindStats({
-  pct, present, held, pace, remaining, noun,
-}: { pct: number | null; present: number; held: number; pace: number; remaining: number; noun: string }) {
+function KindBlock({
+  kind, pct, present, held, total, left, skip,
+}: {
+  kind: "th" | "pr";
+  pct: number | null;
+  present: number;
+  held: number;
+  total: number;
+  left: number;
+  skip: number | null;
+}) {
+  const noun = kind === "th" ? "classes" : "labs";
+  const border = kind === "th" ? "border-l-theory" : "border-l-lab";
   return (
-    <div className="mb-2 flex items-baseline justify-between gap-2">
-      <div>
-        <span className="text-xl font-bold tabular-nums">{fmtPct(pct)}</span>{" "}
-        <span className="text-sm text-slate-600 tabular-nums dark:text-slate-400">({present}/{held})</span>
+    <div className={`flex flex-col gap-2 border-l-4 ${border} pl-4`}>
+      <KindLabel kind={kind} />
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-title font-bold tabular-nums">{fmtPct(pct)}</span>
+        <span className="text-small text-muted tabular-nums">
+          {present}/{held} · {left} of {total} left
+        </span>
       </div>
-      <div className="text-right text-[11px] leading-tight text-slate-600 dark:text-slate-400">
-        {Number.isInteger(pace) ? pace : pace.toFixed(1)}/wk
-        <br />~{remaining} {noun} left
-      </div>
+      <p className="text-small">
+        {skip === null ? (
+          <span className="font-semibold text-danger">Can&apos;t reach 65% even attending every remaining {noun.slice(0, -1)}</span>
+        ) : (
+          <>
+            <b className="text-body font-extrabold tabular-nums">{skip}</b> {noun} you can skip{" "}
+            <span className="text-muted">(stays ≥ 65%)</span>
+          </>
+        )}
+      </p>
     </div>
   );
 }
@@ -31,79 +50,66 @@ export function CourseCard({
 
   if (editing) {
     return (
-      <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <article aria-label={`Edit ${c.label}`} className="card flex flex-col gap-4">
+        <h3 className="text-body font-bold">Edit {c.label}</h3>
         <CourseEditor
           initial={c}
-          submitLabel="Save"
+          submitLabel="Save changes"
           onCancel={() => setEditing(false)}
           onSave={(next) => { onChange(next); setEditing(false); }}
         />
-        <button
-          type="button"
-          onClick={onDelete}
-          className="mt-3 w-full rounded-lg py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950"
-        >
-          Remove course
+        <button type="button" onClick={onDelete} className="btn btn-danger">
+          Remove {c.label}
         </button>
       </article>
     );
   }
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <header className="mb-3 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="truncate text-lg font-bold">{c.label}</h3>
-          <div className="text-xs text-slate-500">
+    <article aria-labelledby={`c-${c.id}`} className="card flex flex-col gap-4">
+      <header className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-col">
+          <h3 id={`c-${c.id}`} className="truncate text-body font-bold">{c.label}</h3>
+          <span className="text-caption text-muted">
             {c.thCredit} Th + {c.prCredit} Pr
             {r.weightIsContact && ` · weighted by ~${r.weight.toFixed(1)} contact hrs/wk`}
-          </div>
+          </span>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <StatusBadge status={r.status} />
-          <button type="button" onClick={() => setEditing(true)} className="text-xs font-medium text-sky-700 underline dark:text-sky-400">
-            Edit / override
-          </button>
-        </div>
+        <StatusBadge status={r.status} />
       </header>
 
-      <div className="mb-3 rounded-xl border-2 border-dashed border-slate-300 px-3 py-2 dark:border-slate-700">
+      <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-            {r.overridden ? "Combined (your override)" : "Estimated Combined"}
-          </span>
-          {r.overridden ? (
-            <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 uppercase">Manual</span>
-          ) : (
-            <EstimatedTag />
-          )}
+          <span className="eyebrow">{r.overridden ? "Combined — your override" : "Estimated combined"}</span>
+          {!r.overridden && <EstimatedTag />}
         </div>
-        <div className="text-3xl font-extrabold tabular-nums">{fmtPct(r.combinedPct)}</div>
-        <div className="text-xs text-slate-500">
-          {r.overridden && <>Calculated {fmtPct(r.calculatedPct)} · </>}
-          {!r.overridden && r.combinedPct !== null && <>NED-style {nedRound(r.combinedPct)}% · </>}
-          {c.reportedPct !== undefined && <>PDF shows {c.reportedPct}% · </>}
-          Attend everything → {fmtPct(r.bestCasePct)}
-        </div>
+        <span className={`text-display font-extrabold tabular-nums ${TONE_TEXT[r.status.tone]}`}>{fmtPct(r.combinedPct)}</span>
+        <span className="text-caption text-muted">
+          {r.overridden ? <>Calculated {fmtPct(r.calculatedPct)}</> : r.combinedPct !== null && <>NED-style {nedRound(r.combinedPct)}%</>}
+          {c.reportedPct !== undefined && <> · PDF shows {c.reportedPct}%</>}
+          {" · "}Attend everything → {fmtPct(r.bestCasePct)}
+        </span>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <KindPanel kind="th">
-          <KindStats pct={r.thPct} present={c.thPresent} held={c.thHeld} pace={r.thPerWeek} remaining={r.remainingTh} noun="classes" />
-          <SkipCount noun="Classes" n={r.missTh} rule="this subject ≥ 65%" />
-        </KindPanel>
-        {r.hasLab && (
-          <KindPanel kind="pr">
-            <KindStats pct={r.prPct} present={c.prPresent} held={c.prHeld} pace={r.prPerWeek} remaining={r.remainingPr} noun="labs" />
-            <SkipCount noun="Labs" n={r.missPr} rule="this subject ≥ 65%" />
-          </KindPanel>
-        )}
-      </div>
+      <KindBlock
+        kind="th" pct={r.thPct} present={c.thPresent} held={c.thHeld}
+        total={r.totalTh} left={r.remainingTh} skip={r.missTh}
+      />
       {r.hasLab && (
-        <p className="mt-2 text-[11px] text-slate-500">
+        <KindBlock
+          kind="pr" pct={r.prPct} present={c.prPresent} held={c.prHeld}
+          total={r.totalPr} left={r.remainingPr} skip={r.missPr}
+        />
+      )}
+      {r.hasLab && (
+        <p className="text-caption text-muted">
           Class skips assume you attend every remaining lab, and lab skips assume you attend every remaining class.
         </p>
       )}
+
+      <button type="button" onClick={() => setEditing(true)} className="btn btn-secondary">
+        Edit {c.label} or override its %
+      </button>
     </article>
   );
 }

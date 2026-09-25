@@ -7,7 +7,7 @@ Upload the **Course-Wise Attendance Analysis** PDF from the portal. If a course 
 ## What it calculates
 
 - Current Theory %, Practical %, and an **estimated** combined % for each course
-- Remaining classes and labs: the semester has 15 weeks of classes, and a subject's credit hours are its sessions per week (3 Th + 1 Pr → 3 classes and 1 lab a week). Classes left = credit hours × weeks left after the report's week. Non-credit courses use their observed pace instead.
+- Remaining classes and labs: a subject's semester total is its credit hours × 15 weeks, with missed classes made up (3 Th → 45 classes, 1 Pr → 15 labs). Classes left = total − held so far. Non-credit courses use their observed pace × 15 instead.
 - For each subject, how many remaining classes and labs you can skip while that subject stays at 65% or above
 - Overall, how many you can skip in total while the credit-hour weighted aggregate stays at 75% or above and every subject stays at 65% or above, and which subjects to take them from
 - Status: a subject is Safe at 65% or above. Overall is Safe when the aggregate is 75% or above and every subject is at 65% or above, Risky / condonation possible at 70–75%, and Danger zone below 70%
@@ -23,6 +23,10 @@ NED hasn't published how theory and practical attendance combine for a course. T
 Rounded up the way NED prints it, this reproduces every course % and the aggregate on real reports, with and without labs. A pooled count (all present ÷ all held) did not match any of the lab courses. It's still labeled an estimate because it isn't official. If a course's % on the portal differs, you can override it for that course. The override is then treated as both the theory % and the lab % so far, and future classes are weighted on top of it.
 
 The aggregate is the credit-hour weighted mean of the course percentages. Zero-credit courses are weighted by their estimated weekly contact hours. NED prints this number rounded up. The app judges your status against the exact, unrounded value, so it errs on the cautious side.
+
+## Design
+
+The UI follows the token-based system in [DESIGN.md](DESIGN.md): Manrope, a monochrome palette, 3px radius and an 8/16/32 spacing scale, with WCAG 2.2 AA focus and contrast rules.
 
 ## Development
 
