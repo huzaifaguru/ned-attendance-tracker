@@ -12,6 +12,7 @@ interface Row {
   key: string;
   label: string;
   now: number | null;
+  attended: number;
   held: number;
   total: number;
   left: number;
@@ -46,6 +47,7 @@ function Table({
             <tr className="border-b border-line">
               <th scope="col" className={`${th} ${sticky} bg-page text-left`}>Subject</th>
               <th scope="col" className={th}>Now</th>
+              <th scope="col" className={th}>Attended</th>
               <th scope="col" className={th}>Held / total</th>
               <th scope="col" className={th}>{noun} left</th>
               <th scope="col" className={th}>
@@ -61,6 +63,7 @@ function Table({
               <tr key={r.key} className="border-b border-line transition-colors duration-200 last:border-0 hover:bg-page">
                 <th scope="row" className={`${sticky} max-w-40 truncate px-2 py-2 text-left font-semibold`}>{r.label}</th>
                 <td className={`${td} font-semibold ${TONE_TEXT[courseStatus(r.now).tone]}`}>{fmtPct(r.now, 0)}</td>
+                <td className={td}>{r.attended}</td>
                 <td className={`${td} text-muted`}>{r.held} / {r.total}</td>
                 <td className={td}>{r.left}</td>
                 <td className={td}>{r.max === null ? unreachable : r.max}</td>
@@ -72,6 +75,7 @@ function Table({
             <tr className="border-t-2 border-ink bg-page">
               <th scope="row" className={`${sticky} bg-page px-2 py-2 text-left font-extrabold`}>Overall</th>
               <td className={`${td} font-semibold`}>{fmtPct(overallNow, 0)}</td>
+              <td className={td}>{rows.reduce((a, r) => a + r.attended, 0)}</td>
               <td className={`${td} text-muted`}>
                 {rows.reduce((a, r) => a + r.held, 0)} / {rows.reduce((a, r) => a + r.total, 0)}
               </td>
@@ -89,13 +93,13 @@ function Table({
 export function SkipTable({ courses, a }: { courses: CourseResult[]; a: AggregateResult }) {
   const thRows: Row[] = courses.map((r) => ({
     key: r.course.id, label: r.course.label, now: r.combinedPct,
-    held: r.course.thHeld, total: r.totalTh, left: r.remainingTh, max: r.missTh,
+    attended: r.course.thPresent, held: r.course.thHeld, total: r.totalTh, left: r.remainingTh, max: r.missTh,
   }));
   const prRows: Row[] = courses
     .filter((r) => r.hasLab)
     .map((r) => ({
       key: r.course.id, label: r.course.label, now: r.combinedPct,
-      held: r.course.prHeld, total: r.totalPr, left: r.remainingPr, max: r.missPr,
+      attended: r.course.prPresent, held: r.course.prHeld, total: r.totalPr, left: r.remainingPr, max: r.missPr,
     }));
 
   return (
